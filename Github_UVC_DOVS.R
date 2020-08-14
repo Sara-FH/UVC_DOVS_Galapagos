@@ -3,17 +3,15 @@
 # Author: Sara Færch Hansen
 # Assisting: Denisse Fierro Arcos
 # Version: 1
-# Date last updated: 2020-08-13
+# Date last updated: 2020-08-14
 # Aim: Explain what the code does, maybe what project is related to (e.g., Master thesis)
 #############################################################
 
 #Github data cleaning and analysis UVC and DOVS Galapagos
 #############################################################
+#Remove spaces around text (characters) in DOVS, using mutate function from dplyr and trim from stringr
 
 # Uploading libraries -----------------------------------------------------
-#Remove spaces around text (characters) in DOVS, using mutate function from dplyr and trim from stringr
-# library(dplyr)
-# library(stringr)
 library(tidyverse) #this one contains a bunch of useful packages including the two above
 
 
@@ -27,15 +25,9 @@ UVC <- read.csv(file = "Data/UVC_all_clean.csv", header = TRUE,
 DOVS <- read.csv(file = "Data/DOVS_clean.csv", header = TRUE, 
                  stringsAsFactors = FALSE)[,-1]
 
-
+#Equivalent to above code in tidyverse
 # read.csv(file = "Data/UVC_all_clean.csv", header = TRUE,
-#          #This number in the square brackets removes the first column
 #          stringsAsFactors = FALSE) %>% select(-X)
-
-#Removing several columns - DOVs: Comments, Stage. UVC: Comments, Sex
-#DOVS <- DOVS[, -c("Comments", "Stage")]
-#UVC <- UVC[, -c("Comments", "Sex")]
-
 
 
 # Tidying up data set ------------------------------------------------------
@@ -118,6 +110,7 @@ unique_DOVS_D <- data.frame(unique(DOVS_D$SpeciesName))
 colnames(unique_DOVS_D) <- "Species"
 unique_UVC <- data.frame(unique(UVC$SpeciesName))
 colnames(unique_UVC) <- "Species"
+#If you want to connect with fishbase check rfishbase package
 
 #Merging the species lists and keeping only the unique species
 species_list <- unique(rbind(unique_DOVS_D, unique_UVC))
@@ -125,9 +118,10 @@ species_list <- unique(rbind(unique_DOVS_D, unique_UVC))
 #Reading csv file with a and b factors (when I have found all a and b values)
 #calculation of biomass
 
-
+#Access to the Fish dataset with correct names and a/b variables to calculate biomass
 FishDB <- read_csv("https://raw.githubusercontent.com/lidefi87/MangroveProject_CDF/master/Data/FishDB.csv")
 
+#Using join to keep correct names of species
 x <- UVC
 x <- x %>% left_join(FishDB %>% select(ScientificName, ValidName, Family, Genus), 
                 by = c("SPECIES" = "ScientificName")) %>% 
@@ -148,13 +142,25 @@ Abun_DOVS_2 <- Abun_DOVS %>%
 
 #Making matrix to enable NMDS plot
 Abun_DOVS_mat <- Abun_DOVS_2 %>%
+  #We are replacing NAs with zeros in the Abundance column
   mutate(Abundance = replace_na(Abundance, 0)) %>% 
   pivot_wider(names_from = "SpeciesName", values_from = "Abundance") %>% 
-  column_to_rownames("Site") %>% as.matrix()
+  #Use the Site column as row names
+  column_to_rownames("Site") %>% 
+  #Turn this tibble into a matrix for further processing
+  as.matrix()
 
+##########Things to consider
+#Remember that we need to compare densities, so the abundance values will need to be
+#divided by the area under study
 
+# Multivariate analysis ---------------------------------------------------
 library(vegan)
+#Applying a 4th root transformation to DOVS matrix
 x <- sqrt(sqrt(Abun_DOVS_mat))
+#Calculating disimilarity distance, the default is Bray Curtis
 y <- vegdist(x)
+#Create a PCo plot
 z <- wcmdscale(y, eig = T)
+#Show plot
 plot(z)
