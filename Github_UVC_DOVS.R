@@ -3,34 +3,25 @@
 # Author: Sara Færch Hansen
 # Assisting: Denisse Fierro Arcos
 # Version: 1
-# Date last updated: 2020-08-14
-# Aim: Explain what the code does, maybe what project is related to (e.g., Master thesis)
+# Date last updated: 2020-08-17
+# Aim: Compare UVC and DOVS data in the Galapagos related to the Master thesis of Sara Færch Hansen
 #############################################################
-
-#Github data cleaning and analysis UVC and DOVS Galapagos
-#############################################################
-#Remove spaces around text (characters) in DOVS, using mutate function from dplyr and trim from stringr
 
 # Uploading libraries -----------------------------------------------------
-library(tidyverse) #this one contains a bunch of useful packages including the two above
-
+library(tidyverse) 
+library(data.table)
+library(vegan)
 
 # Uploading data ----------------------------------------------------------
-#Set working directory and Load UVC and DOVS data
-# setwd("C:/Users/Ejer/Desktop/Github_UVC_DOVS/Data") # I have removed this because you
-#have created a project, so only relative paths are needed I have edit below
-UVC <- read.csv(file = "Data/UVC_all_clean.csv", header = TRUE, 
-                #This number in the square brackets removes the first column
-                stringsAsFactors = FALSE)[,-1] 
+#Loading UVC and DOVS data
+UVC <- read.csv(file = "Data/UVC_all_clean.csv", header = TRUE,
+                stringsAsFactors = FALSE) %>% select(-X)
+
 DOVS <- read.csv(file = "Data/DOVS_clean.csv", header = TRUE, 
-                 stringsAsFactors = FALSE)[,-1]
-
-#Equivalent to above code in tidyverse
-# read.csv(file = "Data/UVC_all_clean.csv", header = TRUE,
-#          stringsAsFactors = FALSE) %>% select(-X)
-
+                 stringsAsFactors = FALSE) %>% select(-X)
 
 # Tidying up data set ------------------------------------------------------
+
 DOVS %>%
   #First we will check unique values for Family, Genus and Species
   distinct(Family, Genus, Species) %>% 
@@ -39,27 +30,10 @@ DOVS %>%
 #end. We also have a blank row at the top, which are for unknown species. Check with
 #Pelayo if we know what they could be, but otherwise we must remove them
 
-#This takes out white space before or after a word in all columns that are of class
-#character. However, because you did not save it, when you merge the columns together
-#you still had the spaces. I have included below how to save the outcome, but I have
-#rewritten this section so everything appears in just one chunk of code
-DOVS_S <- DOVS %>% 
-  mutate(across(where(is.character), str_trim))
-
-#Combine Genus and Species into SPECIES for DOVS data
-# DOVS_S$SPECIES <- paste0(DOVS$Genus , " ", DOVS$Species) #This includes two spaces because
-#the default for paste is to have " " as a separator. Try this instead:
-DOVS_S$SPECIES <- paste(DOVS_S$Genus, DOVS_S$Species)
-
-#Rename DOVS Number_individuals to N
-names(DOVS_S)[names(DOVS_S) == "Number_individuals"] <- "N"
-
-
-#Tidying up data - I have done the same as above and saved it as a different data frame
-#so you can compare and see which one you would like to keep
-DOVS_D <- DOVS %>% 
-  #removing columns as you have commented out above
-  select(-c(Comment, Method)) %>% 
+#Tidying up data
+DOVS <- DOVS %>% 
+  #removing Comment column
+  select(-c(Comment)) %>% 
   #Removing empty rows in Family 
   filter(Family != "") %>% 
   #Rename Number_individuals column
@@ -76,16 +50,15 @@ DOVS_D <- DOVS %>%
                                    #If Genus is empty, then join Species and Family
                                    Genus == "" ~ paste(Family, Species, sep = " ")))
 #We can check our progress
-DOVS_D %>% 
+DOVS %>% 
   distinct(Family, Genus, Species) %>% 
   arrange(Family, Genus)
 #Everything looks ok, except the Mycteroperca sp. From memory M. olfax was the only
 #species in this genus in the Galapagos. Check with Pelayo and change if needed.
 
-#Checking unique species ID's in DOVS_D and UVC
-unique(DOVS_D$SpeciesName) 
-DOVS_D %>% distinct(SpeciesName) %>% arrange(SpeciesName)
-unique(UVC$SPECIES)
+#Checking unique species ID's in DOVS and UVC
+DOVS %>% distinct(SpeciesName) %>% arrange(SpeciesName)
+UVC %>% distinct(SPECIES) %>% arrange(SPECIES)
 
 #Correcting misspelled species names in UVC data (bonito, Paralabrax albomaclatus, yellow tail snapper,
 # Zalophus wolebacki, Hoplopagrus guenteri, Zalophus wollebackii, Zalophus wollebacki, Heterodonthus quoyi,
@@ -100,67 +73,124 @@ UVC$SpeciesName <- UVC$SPECIES %>%
          "Zalophus wollebacki" = "Zalophus wollebaeki",
          "Heterodonthus quoyi" = "Heterodontus quoyi",
          "Myvteroperca olfax" = "Mycteroperca olfax")
+
 #Checking that the unique species are now correct in UVC
-unique(UVC$SpeciesName)
+UVC %>% distinct(SPECIES) %>% arrange(SPECIES)
+
 
 # Biomass calculations ----------------------------------------------------
-#Getting unique species for finding a and b factors to calculate biomass
-library(data.table)
-unique_DOVS_D <- data.frame(unique(DOVS_D$SpeciesName))
-colnames(unique_DOVS_D) <- "Species"
-unique_UVC <- data.frame(unique(UVC$SpeciesName))
-colnames(unique_UVC) <- "Species"
-#If you want to connect with fishbase check rfishbase package
-
-#Merging the species lists and keeping only the unique species
-species_list <- unique(rbind(unique_DOVS_D, unique_UVC))
-
-#Reading csv file with a and b factors (when I have found all a and b values)
-#calculation of biomass
 
 #Access to the Fish dataset with correct names and a/b variables to calculate biomass
 FishDB <- read_csv("https://raw.githubusercontent.com/lidefi87/MangroveProject_CDF/master/Data/FishDB.csv")
 
-#Using join to keep correct names of species
-x <- UVC
-x <- x %>% left_join(FishDB %>% select(ScientificName, ValidName, Family, Genus), 
-                by = c("SPECIES" = "ScientificName")) %>% 
+#Adding column in FishDB for FL to TL to be used in the UVC data
+#How do I make the column for FL to TL?
+
+
+#Using join to keep correct names of species in UVC data
+UVC <- UVC %>% 
+  left_join(FishDB %>% select(ScientificName, ValidName, Family, Genus, a, b, LengthType, LenLenRatio), 
+            by = c("SPECIES" = "ScientificName")) %>% 
   select(-c(SPECIES, SpeciesName))
 
+#Using join to keep correct names of species in DOVS data
+DOVS <- DOVS %>% 
+  left_join(FishDB %>% select(ScientificName, ValidName, a, b, LengthType, LenLenRatio),
+            by = c("SpeciesName" = "ScientificName")) %>% 
+  select(-c(SpeciesName))
+
+DOVS %>% distinct(ValidName) %>% arrange(ValidName) 
+# NA's are introduced in the ValidName column - are these just unknown species? 
+#Or do I need to look into this?
+
+
+# Species Richness calculation --------------------------------------------
+
+#Subsetting columns to be used for Species Richness calculations
+sric_DOVS <- subset(DOVS, select = c("Site", "ValidName", "Method"))
+#Removing ID's that are not made to species level
+sric_DOVS_clean <- sric_DOVS %>% filter(!str_detect(ValidName, " sp"))
+#This also removes NA values from the column
+any(is.na(sric_DOVS$ValidName))
+any(is.na(sric_DOVS_clean$ValidName))
+#Checking the ValidNames left
+sric_DOVS_clean %>% distinct(ValidName) %>% arrange(ValidName) 
+
+#Richness column
+#sric_DOVS_clean 
+x <- sric_DOVS_clean %>% 
+  group_by(Site) %>% 
+  mutate(Richness = n_distinct(ValidName)) %>% 
+  select(-ValidName) 
+
+#Preparing SRic to be made into dissimilarity matrix
+sric_DOVS_mat <- sric_DOVS_clean %>% select(-c(Site, Method))
+sric_DOVS_mat$SiteMet <- paste(sric_DOVS$Site, SRic_DOVS$Method) 
+
+
+
+
+
 # NMDS plot for sites and species ------------------------------------------
-#Assigning columns with species names and abundance from DOVS_D and UVC
-Abun_DOVS <- subset(DOVS_D, select = c("Site", "SpeciesName", "N"))
-
-Abun_DOVS_2 <- Abun_DOVS %>%
-  group_by(Site, SpeciesName) %>%
-  summarise(Abundance = sum(N, na.rm = T))
-# This last line is not working and I do not understand why
-#There is something with the mutate and distinct maybe. 
-#It works when the line is just: distinct(unique(Sum_N))
-#But then I cannot name the column and it is just named "unique(Sum_N)" and I want it to be named "Abundance"
-
-
-#Making matrix to enable NMDS plot
-Abun_DOVS_mat <- Abun_DOVS_2 %>%
-  #We are replacing NAs with zeros in the Abundance column
-  mutate(Abundance = replace_na(Abundance, 0)) %>% 
-  pivot_wider(names_from = "SpeciesName", values_from = "Abundance") %>% 
-  #Use the Site column as row names
-  column_to_rownames("Site") %>% 
-  #Turn this tibble into a matrix for further processing
-  as.matrix()
 
 ##########Things to consider
 #Remember that we need to compare densities, so the abundance values will need to be
 #divided by the area under study
 
+#Assigning columns with species names and abundance from DOVS
+Abun_DOVS <- subset(DOVS, select = c("Site", "SpeciesName", "N", "Method"))
+#Combine site and methods column
+Abun_DOVS$SiteMet <- paste(Abun_DOVS$Site, Abun_DOVS$Method)
+Abun_DOVS <- Abun_DOVS %>% select(-c(Site, Method))
+#Summing abundance of each species per site
+Abun_DOVS <- Abun_DOVS %>%
+  group_by(SiteMet, SpeciesName) %>%
+  summarise(Abundance = sum(N, na.rm = T))
+
+#Assigning columns with species names and abundance from UVC
+Abun_UVC <- subset (UVC, select = c("Site", "SpeciesName", "N", "Method"))
+#Combine site and methods column
+Abun_UVC$SiteMet <- paste(Abun_UVC$Site, Abun_UVC$Method)
+Abun_UVC <- Abun_UVC %>% select(-c(Site, Method))
+#Summing abundance of each species per site
+Abun_UVC <- Abun_UVC %>%
+  group_by(SiteMet, SpeciesName) %>%
+  summarise(Abundance = sum(N, na.rm = T))
+
+#Combining DOVS and UVC data
+Abun <- rbind(Abun_DOVS, Abun_UVC)
+
+#Making matrix to enable NMDS plot
+Abun_mat <- Abun %>%
+  pivot_wider(names_from = "SpeciesName", values_from = "Abundance") %>%
+  #Use the Site column as row names
+  column_to_rownames("SiteMet") %>%
+  #Turn this tibble into a matrix for further processing
+  as.matrix() %>% 
+  #replacing NA values with zero
+  replace_na(0)
+
 # Multivariate analysis ---------------------------------------------------
-library(vegan)
-#Applying a 4th root transformation to DOVS matrix
-x <- sqrt(sqrt(Abun_DOVS_mat))
-#Calculating disimilarity distance, the default is Bray Curtis
-y <- vegdist(x)
-#Create a PCo plot
+
+#Applying a 4th root transformation to matrix
+x <- sqrt(sqrt(Abun_mat))
+#Calculating disimilarity distance using vegan package, the default is Bray Curtis
+y <- vegdist(x, method="bray")
+#Create a PCoA (Principal Co-ordinates Analysis) plot
 z <- wcmdscale(y, eig = T)
 #Show plot
 plot(z)
+
+#NMDS plot on transformed abundance data
+NMDS <- metaMDS(x)
+stressplot(NMDS)
+treat = c(rep("DOVS", 78), rep("UVC",68))
+ordiplot(NMDS, type = "n")
+ordihull(NMDS, groups = treat, draw = "polygon", col = c("green", "blue"), label = F)
+orditorp(NMDS, display = "sites", col = c(rep("green",78), rep("blue",68)), 
+         air = 0.01, cex = 1.25)
+#Maybe this can be done in a nicer way? 
+#No matter what it seems like the two treatments DOVS and UVC are overlapping in their abundances.
+
+
+
