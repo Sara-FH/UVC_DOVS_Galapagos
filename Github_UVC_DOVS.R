@@ -75,17 +75,13 @@ UVC$SpeciesName <- UVC$SPECIES %>%
          "Myvteroperca olfax" = "Mycteroperca olfax")
 
 #Checking that the unique species are now correct in UVC
-UVC %>% distinct(SPECIES) %>% arrange(SPECIES)
+UVC %>% distinct(SpeciesName) %>% arrange(SpeciesName)
 
 
 # Biomass calculations ----------------------------------------------------
 
-#Access to the Fish dataset with correct names and a/b variables to calculate biomass
+#Access to the Fish data set with correct names and a/b variables to calculate biomass
 FishDB <- read_csv("https://raw.githubusercontent.com/lidefi87/MangroveProject_CDF/master/Data/FishDB.csv")
-
-#Adding column in FishDB for FL to TL to be used in the UVC data
-#How do I make the column for FL to TL?
-
 
 #Using join to keep correct names of species in UVC data
 UVC <- UVC %>% 
@@ -97,11 +93,92 @@ UVC <- UVC %>%
 DOVS <- DOVS %>% 
   left_join(FishDB %>% select(ScientificName, ValidName, a, b, LengthType, LenLenRatio),
             by = c("SpeciesName" = "ScientificName")) %>% 
+  drop_na(ValidName) %>% #Dropping rows with unidentified species
+  filter(!str_detect(ValidName, "Chelonia mydas|Zalophus wollebaeki")) %>% #Dropping non-fish species
   select(-c(SpeciesName))
 
-DOVS %>% distinct(ValidName) %>% arrange(ValidName) 
-# NA's are introduced in the ValidName column - are these just unknown species? 
-#Or do I need to look into this?
+DOVS %>% distinct(ValidName) %>% arrange(ValidName) #No NA's and the two non-fish species are also removed
+
+#Calculate the biomass for DOVS using FishDB a and b values for FL
+str(DOVS) #LenLenRatio is character and needs to be numeric
+Biomass_DOVS <- DOVS %>% select(Site, Length_mm, N, Method, ValidName, a, b, LengthType, LenLenRatio) %>%
+  mutate(LenLenRatio = as.numeric(LenLenRatio)) %>% 
+  mutate(Biomass = (a*LenLenRatio*Length_mm)^b) %>% 
+  mutate(Biomass_N = Biomass*N)
+#Denisse, could you double check this calculation
+#Also what do we do with rows that are missing lengths?
+
+#summing biomass for each species
+x <- Biomass_DOVS
+
+################ I cannot make this work. 
+#I am trying to sum up all the biomasses per species - so that I can move on to making the matrix to 
+#calculate dissimilarity
+x <- x %>% group_by(ValidName) %>% 
+  mutate(Biomass_sp = sum(Biomass_N))
+#summarise(Biomass_sp = sum(Biomass_N))
+
+
+#Making matrix for dissimilarity calculation
+Biomass_DOVS_mat <- Biomass_DOVS %>% select(Site, Method, ValidName, Biomass_N) %>% 
+  mutate(SiteMet = paste(Site, Method)) %>% 
+  select(-c(Site, Method))
+
+
+
+mat <- Biomass_DOVS_mat %>% pivot_wider(names_from = "ValidName", values_from = "Biomass_N") %>% 
+  column_to_rownames("SiteMet") %>% 
+  as.matrix() #%>% 
+  #replace_na(0)
+
+mat %>% head()
+
+#Making matrix to enable NMDS plot
+Abun_mat <- Abun %>%
+  pivot_wider(names_from = "SpeciesName", values_from = "Abundance") %>%
+  #Use the Site column as row names
+  column_to_rownames("SiteMet") %>%
+  #Turn this tibble into a matrix for further processing
+  as.matrix() %>% 
+  #replacing NA values with zero
+  replace_na(0)
+
+  
+################## Data from fishbase ###############
+#Getting length data from fishbase.org using rfishbase
+library(rfishbase)
+
+#Example from package
+## Not run: 
+a <- length_length("Oreochromis niloticus", server = "fishbase")
+## End(Not run)
+
+#Using species list from UVC to get length data
+b1 <- UVC %>% distinct(ValidName) %>% drop_na(ValidName)
+b2 <- length_length(b1$ValidName, fields = c("Species", "Length1", "Length2", "a", "b", "Type"), 
+                    server = "fishbase")
+#a lot of the "a" values are zero - I feel like that is wrong.
+
+b1 %>% distinct(ValidName) %>% arrange(ValidName)
+b2 %>% distinct(Species) %>% arrange(Species)
+
+#There are 3 species which are in the species list, but not in the database
+b1$ValidName[!(b1$ValidName %in% b2$Species)]
+#"Chelonia mydas" = green sea turtle. "Zalophus wollebaeki" = galapagos sea lion.
+#"Aetobatus laticeps" = Pacific eagle ray, there is no length weight data on fishbase.
+#Aetobatus laticeps is in the FishDB data.
+################################################################################
+
+############# Data from FishDB, how many do I actually need to change ##########
+
+x <- UVC
+y <- x %>% select(ValidName, a, b, LengthType, LenLenRatio) %>% distinct() %>% 
+  drop_na() %>% filter(ValidName != c("Chelonia mydas", "Zalophus wollebaeki"))
+
+y %>% distinct(ValidName) %>% arrange(ValidName)
+length(which(y$LengthType == "TL")) #There are 7 that are already TL
+#so all I need to find if I make my own column is 11 TL values for the species left.
+################################################################################
 
 
 # Species Richness calculation --------------------------------------------
@@ -126,8 +203,6 @@ x <- sric_DOVS_clean %>%
 #Preparing SRic to be made into dissimilarity matrix
 sric_DOVS_mat <- sric_DOVS_clean %>% select(-c(Site, Method))
 sric_DOVS_mat$SiteMet <- paste(sric_DOVS$Site, SRic_DOVS$Method) 
-
-
 
 
 
