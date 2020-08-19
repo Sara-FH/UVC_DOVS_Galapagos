@@ -21,7 +21,6 @@ DOVS <- read.csv(file = "Data/DOVS_clean.csv", header = TRUE,
                  stringsAsFactors = FALSE) %>% select(-X)
 
 # Tidying up data set ------------------------------------------------------
-
 DOVS %>%
   #First we will check unique values for Family, Genus and Species
   distinct(Family, Genus, Species) %>% 
@@ -64,7 +63,9 @@ UVC %>% distinct(SPECIES) %>% arrange(SPECIES)
 # Zalophus wolebacki, Hoplopagrus guenteri, Zalophus wollebackii, Zalophus wollebacki, Heterodonthus quoyi,
 # Myvteroperca olfax)
 UVC$SpeciesName <- UVC$SPECIES %>%
-  recode(., "bonito" = "Sardinops sagax", 
+  recode(., "bonito" = "Sardinops sagax", #I think this is incorrect. The bonito in Ecuador
+         #refers to a type of tuna rather than a pilchard. I believe the correct species is
+         #Sarda orientalis. Check with Pelayo.
          "Paralabrax albomaclatus" = "Paralabrax albomaculatus",
          "yellow tail snapper" = "Lutjanus argentiventris",
          "Zalophus wolebacki" = "Zalophus wollebaeki",
@@ -79,29 +80,113 @@ UVC %>% distinct(SpeciesName) %>% arrange(SpeciesName)
 
 
 # Biomass calculations ----------------------------------------------------
+#Vector containing names of non fish species
+NonFish <- c("Eretmochelys imbricata", "Chelonia mydas", "Zalophus wollebaeki", 
+             "Phalacrocorax harrisi", "Cardisoma crassum", "Panulirus gracilis",
+             "Scyllarides astori", "Spheniscus mendiculus", "Arctocephalus galapagoensis",
+             "Lepidochelys olivacea")
+
 
 #Access to the Fish data set with correct names and a/b variables to calculate biomass
 FishDB <- read_csv("https://raw.githubusercontent.com/lidefi87/MangroveProject_CDF/master/Data/FishDB.csv")
 
 #Using join to keep correct names of species in UVC data
-UVC <- UVC %>% 
-  left_join(FishDB %>% select(ScientificName, ValidName, Family, Genus, a, b, LengthType, LenLenRatio), 
-            by = c("SPECIES" = "ScientificName")) %>% 
-  select(-c(SPECIES, SpeciesName))
+#We do not need all columns in the UVC dataset, I am cleaning it up a bit
+UVC_clean <- UVC %>% select(-c(Time, Diver, Current, Temperature, Thermocline_depth, 
+                  Water_temp_over_therm, Water_temp_below_therm, Vis_over_therm,
+                  Vis_below_therm, SPECIES, Comments, Habitat_type_RSM, Rugosity_0_3,
+                  Inclination_0_3, Rocky_reef_max_depth))
+
+UVC_clean2 <- UVC_clean %>% 
+  left_join(FishDB %>% select(ScientificName, ValidName, Family, Genus, a, b, 
+                              LengthType, LenLenRatio), 
+            #SPECIES is the column with the uncorrected names - This is why it is important
+            #to remove any column you no longer need. I have changed this to the correct
+            #column SpeciesName
+            by = c("SpeciesName" = "ScientificName")) 
+#Prior to removing the SpeciesName column, we should check for NA values in the 
+#ScientificName column. This way we can identify the species that are not included in our
+#FishDB
+#First, let's extract the rows with NA values under ValidName, but keeping all columns
+UVC_clean2 %>% filter(is.na(ValidName), .preserve = T) %>% 
+  #Now let's extract the unique values of SpeciesNames for which we do not have a valid name
+  distinct(SpeciesName)
+#We can see that these species either do not appear in the FishDB or they do not have the
+#same spelling. I have updated FishDB so we now have these values included
+#Check Decapterus sanctaehelenae (now known as D. punctatus) because it is not recorded in
+#the Pacific, only the Atlantic. According to the STRI website, there are only three species
+#of Decapterus: D. macarellus, D. macrosoma, and D. muroadsi. Talk to Pelayo about this.
+
+#Now that corrections have been made, change remove any non-fish species
+UVC_clean <- UVC_clean2 %>% 
+  #We keep only observations for which SpeciesNames is not included in the NonFish vector
+  filter(!ValidName %in% NonFish) 
+  #Remove SpeciesName column when D. santaehelenae is sorted out
+  # %>% select(-SpeciesName)
+#Remove this variable as it is no longer needed
+rm(UVC_clean2)
+
 
 #Using join to keep correct names of species in DOVS data
-DOVS <- DOVS %>% 
+DOVS2 <- DOVS %>% 
+  #Correcting Mycteroperca sp to M. olfax
+  mutate(SpeciesName = case_when(SpeciesName == "Mycteroperca sp" ~ "Mycteroperca olfax",
+                                 TRUE ~ SpeciesName)) %>% 
   left_join(FishDB %>% select(ScientificName, ValidName, a, b, LengthType, LenLenRatio),
-            by = c("SpeciesName" = "ScientificName")) %>% 
-  drop_na(ValidName) %>% #Dropping rows with unidentified species
-  filter(!str_detect(ValidName, "Chelonia mydas|Zalophus wollebaeki")) %>% #Dropping non-fish species
-  select(-c(SpeciesName))
+            by = c("SpeciesName" = "ScientificName")) 
+#We do not drop names without first checking why this is the case
 
-DOVS %>% distinct(ValidName) %>% arrange(ValidName) #No NA's and the two non-fish species are also removed
+#We follow the same steps as before
+DOVS2 %>% filter(is.na(ValidName), .preserve = T) %>% 
+  #Now let's extract the unique values of SpeciesNames for which we do not have a valid name
+  distinct(SpeciesName)
+#Check with Pelayo if the following genus have more than one species reported in the GMR
+#Zanclus genus aside from Z. cornutus
+#Auslostomidae family aside from Aulustomus genus and A. chinensis
+#Aulostomus genus aside from A. chinensis
+#Holacanthus genus aside from H. passer
+#Sufflamen genus aside from S. verres
+#Uraspis genus aside from U. helvola
+
+#Now we remove non fish species
+DOVS <- DOVS2 %>% 
+  filter(!ValidName %in% NonFish) %>% 
+  select(-c(SpeciesName))
+#Remove duplicate variable no longer needed
+rm(DOVS2)
+
+#No NAs and the two non-fish species are also removed
+DOVS %>% distinct(ValidName) %>% arrange(ValidName) 
+
+
+# Biomass calculations ----------------------------------------------------
+#Quality Control
+#Prior to calculating biomass we need our DOVS measurements to meet two requirements
+#1. RMS <= 20
+#2. Precision <= 10% estimated Length
+DOVS <- DOVS %>% filter(RMS_mm <= 20) %>% 
+  filter(Precision_mm <= Length_mm*.1) %>% 
+  #We also need to change the units of the lengths from mm to cm prior to biomass calculation
+  mutate(Length_mm = Length_mm/10) %>% 
+  #Now we rename the column to avoid confusion
+  rename("Length_cm"="Length_mm") %>% 
+  #We will drop columns we do not need
+  select(-c(Precision_mm, RMS_mm, Range_mm))
+  
+#We need to ask a few questions before continuing with our calculations:
+#1. Is this point data or MaxN data? This is important because we have a stage column and
+#if this is a MaxN then we will need to figure out if N is related to MaxN per species or
+#MaxN per stage per species
+#2. What do we do with data points with no periods attached to it?
+
+#The following code assumes that this is point data and that we need to remove any rows
+#with no period
+DOVS %>% filter(!Period == "")
 
 #Calculate the biomass for DOVS using FishDB a and b values for FL
 str(DOVS) #LenLenRatio is character and needs to be numeric
-Biomass_DOVS <- DOVS %>% select(Site, Length_mm, N, Method, ValidName, a, b, LengthType, LenLenRatio) %>%
+Biomass_DOVS <- DOVS %>% select(Site, Length_mm, N, Method, ValidName, a, b, 
+                                LengthType, LenLenRatio) %>%
   mutate(LenLenRatio = as.numeric(LenLenRatio)) %>% 
   mutate(Biomass = (a*LenLenRatio*Length_mm)^b) %>% 
   mutate(Biomass_N = Biomass*N)
@@ -182,6 +267,10 @@ length(which(y$LengthType == "TL")) #There are 7 that are already TL
 
 
 # Species Richness calculation --------------------------------------------
+
+#Species richness can be calculated with vegan::specnumber() on the density matrix
+#While vegan::diversity() will allow you to calculate diversity indices
+
 
 #Subsetting columns to be used for Species Richness calculations
 sric_DOVS <- subset(DOVS, select = c("Site", "ValidName", "Method"))
