@@ -99,10 +99,7 @@ UVC_clean <- UVC %>% select(-c(Time, Diver, Current, Temperature, Thermocline_de
 
 UVC_clean2 <- UVC_clean %>% 
   left_join(FishDB %>% select(ScientificName, ValidName, Family, Genus, a, b, 
-                              LengthType, LenLenRatio), 
-            #SPECIES is the column with the uncorrected names - This is why it is important
-            #to remove any column you no longer need. I have changed this to the correct
-            #column SpeciesName
+                              LengthType, LenLenRatio),
             by = c("SpeciesName" = "ScientificName")) 
 #Prior to removing the SpeciesName column, we should check for NA values in the 
 #ScientificName column. This way we can identify the species that are not included in our
@@ -139,7 +136,8 @@ DOVS2 <- DOVS %>%
 #We follow the same steps as before
 DOVS2 %>% filter(is.na(ValidName), .preserve = T) %>% 
   #Now let's extract the unique values of SpeciesNames for which we do not have a valid name
-  distinct(SpeciesName)
+  distinct(SpeciesName) # I get a zero here it writes: "[1] SpeciesName" and "<0 rows> (or 0-length row.names)"
+
 #Check with Pelayo if the following genus have more than one species reported in the GMR
 #Zanclus genus aside from Z. cornutus
 #Auslostomidae family aside from Aulustomus genus and A. chinensis
