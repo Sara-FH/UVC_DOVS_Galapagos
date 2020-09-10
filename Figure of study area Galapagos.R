@@ -9,7 +9,7 @@
 library(sf)
 library(tidyverse) #tidyverse includes ggplot2 so I have removed it
 library(sp)
-
+library(janitor)
 
 # Accessing data ----------------------------------------------------------
 #Loading shapefiles - DFA
@@ -52,21 +52,6 @@ Sites <- read.csv2("Data/Bacalao_MagicMysteryTour_GPS_Coordinates_Respaldo.csv")
 #That's why I am using read.csv2.
 str(Sites)
 
-#The coordinates LAT and LONG are in DDM (Degrees, decimal minutes) as far as I can see
-#it is also in characters, but it reads the entire cell as 1, not just the first letter, I was
-#trying to move N to the back, to try to rearrange to a format that could be changed to 
-#DD (decimal degrees).
-
-#DFA responds: When I load the dataset it shows lat and long as factors and they come up as, for example:
-#N1° 40.320', W91° 59.361'. So I am not exactly sure what the error is.
-
-
-#Overall I am trying to make the current format into decimal degrees so I can plot it on a map
-#hereby, putting the sites on a map of the Galapagos
-
-#DFA responds: I am not sure what you tried to do before, but I am changing the degrees decimal minutes to
-#decimal degrees
-
 #First, we need to change the lat and long columns from factors to characters - DFA
 Sites <- Sites %>% mutate(lat = as.character(lat), 
                  long = as.character(long),
@@ -100,3 +85,19 @@ MapGMR+
   #I decreased the size of the dots and made them slightly transparent so we can see the management zones clearly
   geom_sf(data = SiteShp, size = 1, colour = alpha("#882255", 0.6))
 
+#Table with overview of areas in each management zone
+Zones <- Sites %>%
+  mutate(category = case_when(zoning == "Comparación y protección (2.1)" ~ 2.1, 
+                              zoning == "Conservación y uso no extractivo (2.2)" ~ 2.2,
+                              zoning == "Conservación y uso extractivo (2.3)" ~ 2.3,
+                              zoning == "Manejo especial (2.4)" ~ 2.4)) 
+Zones <- Zones %>%
+  group_by(zoning) %>%
+  summarise(count = n())%>% 
+  adorn_totals("row") %>% 
+  mutate(fishing = case_when(zoning == "Comparación y protección (2.1)" ~ "closed", 
+                             zoning == "Conservación y uso no extractivo (2.2)" ~ "closed",
+                             zoning == "Conservación y uso extractivo (2.3)" ~ "open",
+                             zoning == "Manejo especial (2.4)" ~ "closed"))
+
+  
