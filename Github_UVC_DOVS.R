@@ -250,8 +250,6 @@ Dummy_data <- Dummy_data %>% drop_na() %>%
   filter(!duplicated(.))
 Dummy_data$Biomass_sp <- sample(0:1000, nrow(Dummy_data))
 
-#Dummy_data$Biomass_sp <- Dummy_mat$Biomass_sp*runif(361, min = 0, max = 10000)
-
 #Making matrix dummy_data
 Dummy_mat <- Dummy_data %>% 
   pivot_wider(names_from = "ValidName", values_from = "Biomass_sp") %>% 
@@ -287,7 +285,8 @@ pco2 <- pco1 %>% mutate(Method = case_when(endsWith(Sites, "DOVS") ~ "DOVS",
 ggplot(pco2, aes(PC1, PC2, col = Method, fill = Method)) + 
   stat_ellipse(geom = "polygon", col = "black", alpha = 0.5) + 
   geom_point(shape = 21, col = "black") +
-  
+  theme_bw() + 
+  theme(panel.grid = element_blank())
 
 ################################################################################################
 
@@ -320,28 +319,45 @@ a <- UVC_clean %>% select(ValidName, LengthType) %>% distinct()
 #Species richness can be calculated with vegan::specnumber() on the density matrix
 #While vegan::diversity() will allow you to calculate diversity indices
 
+#Abundance matrix for species richness calculations
+Abun_DOVS <- subset(DOVS, select = c("Site", "ValidName", "Method", "N")) %>% 
+  replace(is.na(.), 0) %>% 
+  group_by(Site, ValidName) %>% 
+  mutate(N_sum = sum(N)) %>% 
+  ungroup(Site, ValidName) %>% 
+  mutate(SiteMet = paste(Site, Method)) %>% 
+  select(-c(Site, Method, N)) %>%
+  mutate(N_sum = as.numeric(N_sum)) %>% 
+  distinct()
 
-#Subsetting columns to be used for Species Richness calculations
-sric_DOVS <- subset(DOVS, select = c("Site", "ValidName", "Method"))
-#Removing ID's that are not made to species level
-sric_DOVS_clean <- sric_DOVS %>% filter(!str_detect(ValidName, " sp"))
-#This also removes NA values from the column
-any(is.na(sric_DOVS$ValidName))
-any(is.na(sric_DOVS_clean$ValidName))
-#Checking the ValidNames left
-sric_DOVS_clean %>% distinct(ValidName) %>% arrange(ValidName) 
+Abun_DOVS_mat <- x %>% 
+  pivot_wider(names_from = "ValidName", values_from = "N_sum") %>% 
+  column_to_rownames("SiteMet") %>%
+  as.matrix() %>% 
+  replace_na(0)
 
-#Richness column
-#sric_DOVS_clean 
-x <- sric_DOVS_clean %>% 
-  group_by(Site) %>% 
-  mutate(Richness = n_distinct(ValidName)) %>% 
-  select(-ValidName) 
+#Species richness for sites
+DOVS_richness <- specnumber(x_mat)
 
-#Preparing SRic to be made into dissimilarity matrix
-sric_DOVS_mat <- sric_DOVS_clean %>% select(-c(Site, Method))
-sric_DOVS_mat$SiteMet <- paste(sric_DOVS$Site, SRic_DOVS$Method) 
+#species accumulation curve
+spa_DOVS <- specaccum(x_mat)
+plot(spa_DOVS)
 
+#Dissimilarity matrix for Abundance DOVS
+Abun_DOVS_mat2 <- vegdist(Abun_DOVS_mat, method = "bray")
+PCO_abun <- wcmdscale(Abun_DOVS_mat2, eig = T)
+plot(PCO_abun)
+
+a <- as.data.frame(PCO_abun$points[,1:2]) 
+a <- setDT(a, keep.rownames = TRUE)[]
+a <- a %>% rename(Sites = rn, PC1 = Dim1, PC2 = Dim2) %>% 
+  mutate(Method = case_when(endsWith(Sites, "DOVS") ~ "DOVS"))
+
+ggplot(a, aes(PC1, PC2, col = Method, fill = Method)) + 
+  stat_ellipse(geom = "polygon", col = "black", alpha = 0.5) + 
+  geom_point(shape = 21, col = "black") +
+  theme_bw() + 
+  theme(panel.grid = element_blank())
 
 
 # NMDS plot for sites and species ------------------------------------------
