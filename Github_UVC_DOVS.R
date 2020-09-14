@@ -30,12 +30,11 @@ DOVS %>%
   distinct(Family, Genus, Species) %>% 
   arrange(Family, Genus)
 #Results suggest that there are a number of Genus with an additional blank space at the
-#end. We also have a blank row at the top, which are for unknown species. Check with
-#Pelayo if we know what they could be, but otherwise we must remove them
+#end. We also have a blank row at the top, which are for unknown species.
 
 #Tidying up data
 DOVS <- DOVS %>% 
-  #removing Comment column
+  #Removing Comment column
   select(-c(Comment)) %>% 
   #Removing empty rows in Family 
   filter(Family != "") %>% 
@@ -57,7 +56,15 @@ DOVS %>%
   distinct(Family, Genus, Species) %>% 
   arrange(Family, Genus)
 #Everything looks ok, except the Mycteroperca sp. From memory M. olfax was the only
-#species in this genus in the Galapagos. Check with Pelayo and change if needed.
+#species in this genus in the Galapagos. #After checking should be changed to M. olfax.
+
+#Mycteroperca sp. to Mycteroperca olfax
+DOVS <- DOVS %>% mutate(SpeciesName = case_when(SpeciesName == "Mycteroperca sp" ~ "Mycteroperca olfax",
+                                                         TRUE ~ SpeciesName))
+#Checking that it works
+DOVS %>% 
+  distinct(Family, Genus, Species, SpeciesName) %>% 
+  arrange(Family, Genus)
 
 #Checking unique species ID's in DOVS and UVC
 DOVS %>% distinct(SpeciesName) %>% arrange(SpeciesName)
@@ -67,9 +74,7 @@ UVC %>% distinct(SPECIES) %>% arrange(SPECIES)
 # Zalophus wolebacki, Hoplopagrus guenteri, Zalophus wollebackii, Zalophus wollebacki, Heterodonthus quoyi,
 # Myvteroperca olfax)
 UVC$SpeciesName <- UVC$SPECIES %>%
-  recode(., "bonito" = "Sardinops sagax", #I think this is incorrect. The bonito in Ecuador
-         #refers to a type of tuna rather than a pilchard. I believe the correct species is
-         #Sarda orientalis. Check with Pelayo.
+  recode(., "bonito" = "Sarda orientalis", #The bonito in Ecuador refers to Sarda orientalis
          "Paralabrax albomaclatus" = "Paralabrax albomaculatus",
          "yellow tail snapper" = "Lutjanus argentiventris",
          "Zalophus wolebacki" = "Zalophus wollebaeki",
@@ -83,7 +88,7 @@ UVC$SpeciesName <- UVC$SPECIES %>%
 UVC %>% distinct(SpeciesName) %>% arrange(SpeciesName)
 
 
-# Biomass calculations ----------------------------------------------------
+# Cleaning non-fish species and species ID's ----------------------------------------------------
 #Vector containing names of non fish species
 NonFish <- c("Eretmochelys imbricata", "Chelonia mydas", "Zalophus wollebaeki", 
              "Phalacrocorax harrisi", "Cardisoma crassum", "Panulirus gracilis",
@@ -95,7 +100,7 @@ NonFish <- c("Eretmochelys imbricata", "Chelonia mydas", "Zalophus wollebaeki",
 FishDB <- read_csv("https://raw.githubusercontent.com/lidefi87/MangroveProject_CDF/master/Data/FishDB.csv")
 
 #Using join to keep correct names of species in UVC data
-#We do not need all columns in the UVC dataset, I am cleaning it up a bit
+#We do not need all columns in the UVC dataset, dropping columns that are not needed
 UVC_clean <- UVC %>% select(-c(Time, Diver, Current, Temperature, Thermocline_depth, 
                   Water_temp_over_therm, Water_temp_below_therm, Vis_over_therm,
                   Vis_below_therm, SPECIES, Comments, Habitat_type_RSM, Rugosity_0_3,
@@ -112,13 +117,12 @@ UVC_clean2 <- UVC_clean %>%
 UVC_clean2 %>% filter(is.na(ValidName), .preserve = T) %>% 
   #Now let's extract the unique values of SpeciesNames for which we do not have a valid name
   distinct(SpeciesName)
-#We can see that these species either do not appear in the FishDB or they do not have the
-#same spelling. I have updated FishDB so we now have these values included
-#Check Decapterus sanctaehelenae (now known as D. punctatus) because it is not recorded in
-#the Pacific, only the Atlantic. According to the STRI website, there are only three species
-#of Decapterus: D. macarellus, D. macrosoma, and D. muroadsi. Talk to Pelayo about this.
+#Updated FishDB so we now have Decapterus sanctaehelenae (now known as D. punctatus) 
+#Check this ID, because it is not recorded in the Pacific, only the Atlantic. According to the STRI website, 
+#there are only three species of Decapterus: D. macarellus, D. macrosoma, and D. muroadsi. 
+#Talk to Pelayo about this.
 
-#Now that corrections have been made, change remove any non-fish species
+#Now that corrections have been made, remove any non-fish species
 UVC_clean <- UVC_clean2 %>% 
   #We keep only observations for which SpeciesNames is not included in the NonFish vector
   filter(!ValidName %in% NonFish) 
@@ -127,28 +131,39 @@ UVC_clean <- UVC_clean2 %>%
 #Remove this variable as it is no longer needed
 rm(UVC_clean2)
 
-
-#Using join to keep correct names of species in DOVS data
-DOVS2 <- DOVS %>% 
-  #Correcting Mycteroperca sp to M. olfax
-  mutate(SpeciesName = case_when(SpeciesName == "Mycteroperca sp" ~ "Mycteroperca olfax",
-                                 TRUE ~ SpeciesName)) %>% 
-  left_join(FishDB %>% select(ScientificName, ValidName, a, b, LengthType, LenLenRatio),
-            by = c("SpeciesName" = "ScientificName")) 
-#We do not drop names without first checking why this is the case
-
-#We follow the same steps as before
-DOVS2 %>% filter(is.na(ValidName), .preserve = T) %>% 
-  #Now let's extract the unique values of SpeciesNames for which we do not have a valid name
-  distinct(SpeciesName) # I get a zero here it writes: "[1] SpeciesName" and "<0 rows> (or 0-length row.names)"
-
-#Check with Pelayo if the following genus have more than one species reported in the GMR
+#Correcting species in DOVS
+#The following Families and Genuses only have 1 specie in the GMR
 #Zanclus genus aside from Z. cornutus
 #Auslostomidae family aside from Aulustomus genus and A. chinensis
 #Aulostomus genus aside from A. chinensis
 #Holacanthus genus aside from H. passer
 #Sufflamen genus aside from S. verres
 #Uraspis genus aside from U. helvola
+
+#Correcting these species
+DOVS <- DOVS %>% 
+  mutate(SpeciesName = case_when(SpeciesName == "Zanclus sp" ~ "Zanclus cornutus",
+                                 SpeciesName == "Aulostomidae sp" ~ "Aulostomus chinensis",
+                                 SpeciesName == "Aulostomus sp" ~ "Aulostomus chinensis",
+                                 SpeciesName == "Holacanthus sp" ~ "Holacanthus passer",
+                                 SpeciesName == "Sufflamen sp" ~ "Sufflamen verres",
+                                 SpeciesName == "Uraspis sp" ~ "Uraspis helvola",
+                                 TRUE ~ SpeciesName))
+
+#Using join to keep correct names of species in DOVS data
+DOVS2 <- DOVS %>% 
+  #Correcting Mycteroperca sp to M. olfax
+  mutate(SpeciesName = case_when(SpeciesName == "Mycteroperca sp" ~ "Mycteroperca olfax",
+                                 TRUE ~ SpeciesName)) %>%  #Correction of Mycteroperca sp. to M. olfax 
+  #can be deleted here, because it is now corrected further up in the code. Right??
+  left_join(FishDB %>% select(ScientificName, ValidName, a, b, LengthType, LenLenRatio),
+            by = c("SpeciesName" = "ScientificName"))
+
+#We follow the same steps as before
+DOVS2 %>% filter(is.na(ValidName), .preserve = T) %>% 
+  #Now let's extract the unique values of SpeciesNames for which we do not have a valid name
+  distinct(SpeciesName) # I get a zero here it writes: "[1] SpeciesName" and "<0 rows> (or 0-length row.names)"
+#I think that means we have valid names for all species ?
 
 #Now we remove non fish species
 DOVS <- DOVS2 %>% 
@@ -181,6 +196,7 @@ DOVS <- DOVS %>% filter(RMS_mm <= 20) %>%
 #MaxN per stage per species
 #2. What do we do with data points with no periods attached to it?
 
+DOVS %>% group_by(Period) %>% tally() #There are 289 length measurements that are not in any period.
 #The following code assumes that this is point data and that we need to remove any rows
 #with no period
 DOVS %>% filter(!Period == "")
@@ -208,10 +224,10 @@ Biomass_DOVS_mat <- Biomass_DOVS %>% select(Site, Method, ValidName, Biomass_sp)
 
 any(is.na(Biomass_DOVS_mat))
 
-# NA's are introduced, because when there is no species ID e.g. Balistidae sp, there is
+# NA's are introduced, because when there is no species ID e.g. Balistidae sp, there are sometimes
 #also no length measurement. Should I delete rows with NA's in the abundance columns?
 
-#Dropping rows with NA values and deleting duplicates
+#Dropping rows with NA values and deleting duplicates #Is this the correct thing to do?
 DOVS_mat <- Biomass_DOVS_mat %>% drop_na() %>% 
   filter(!duplicated(.))
 
@@ -225,13 +241,16 @@ DOVS_mat <- DOVS_mat %>%
 any(is.na(DOVS_mat))
 DOVS_mat %>% head()
 
+######################### Dummy data, until I have UVC data #############################
 #Dummy_data to plot two different data sets
 Dummy_data <- Biomass_DOVS_mat
 Dummy_data$SiteMet <- Dummy_data$SiteMet %>% str_replace_all("DOVS", "Dummy")
 #Dropping rows with NA values and deleting duplicates
 Dummy_data <- Dummy_data %>% drop_na() %>% 
   filter(!duplicated(.))
-Dummy_data$Biomass_sp <- Dummy_mat$Biomass_sp*runif(361, min = 10, max = 100)
+Dummy_data$Biomass_sp <- sample(0:1000, nrow(Dummy_data))
+
+#Dummy_data$Biomass_sp <- Dummy_mat$Biomass_sp*runif(361, min = 0, max = 10000)
 
 #Making matrix dummy_data
 Dummy_mat <- Dummy_data %>% 
@@ -243,64 +262,56 @@ Dummy_mat <- Dummy_data %>%
 #Combining DOVS and dummy_data
 DOVS_dummy <- rbind(DOVS_mat, Dummy_mat)
 
+#Producing qq-plot for biomass of DOVS, to see effect of transformation
+qqnorm(Biomass_DOVS$Biomass_N^(1/4))
+qqline(Biomass_DOVS$Biomass_N^(1/4), col = "red")
+qqnorm(Biomass_DOVS$Biomass_sp^(1/4))
+qqline(Biomass_DOVS$Biomass_sp^(1/4), col = "red")
+
 #Applying a 4th root transformation to matrix
-x <- DOVS_mat^(1/4)
-x2 <- DOVS_dummy^(1/4)
+x <- DOVS_dummy^(1/4)
 #Calculating dissimilarity distance using vegan package, the default is Bray Curtis
 y <- vegdist(x, method = "bray")
-y2 <- vegdist(x2, method = "bray")
 #Create a PCoA (Principal Co-ordinates Analysis) plot
 z <- wcmdscale(y, eig = T)
-z2 <- wcmdscale(y2, eig = T)
 #Show plot
 plot(z)
-plot(z2)
 
 #binding PCO coordinates to dataframe
-pco1 <- rbind(Dummy_data, Biomass_DOVS_mat) %>% 
-  filter(!duplicated(.))
-
-
-pco2 <- as.data.frame(z2$points[,1:2])
-library(data.table)
-pco2 <- setDT(pco2, keep.rownames = TRUE)[]
-pco2 <- pco2 %>% rename(Sites = rn)
-pco2 <- pco2 %>% mutate(Method = case_when(Sites == "DOVS" ~ "DOVS",
-                                           Sites == "Dummy" ~ "Dummy"))
-#Not working....
-
-(Method = case_when(Sites == "DOVS" ~ "DOVS",
-                    Sites == "Dummy" ~ "Dummy"))
-str(pco2)
-           
-           #replace(Sites, c("DOVS", "Dummy"), ""))
+pco1 <- as.data.frame(z$points[,1:2])
+pco1 <- setDT(pco1, keep.rownames = TRUE)[]
+pco1 <- pco1 %>% rename(Sites = rn, PC1 = Dim1, PC2 = Dim2)
+pco2 <- pco1 %>% mutate(Method = case_when(endsWith(Sites, "DOVS") ~ "DOVS",
+                                           endsWith(Sites, "Dummy") ~ "Dummy"))
+#plotting PCO with methods
+ggplot(pco2, aes(PC1, PC2, col = Method, fill = Method)) + 
+  stat_ellipse(geom = "polygon", col = "black", alpha = 0.5) + 
+  geom_point(shape = 21, col = "black") +
   
-  Zones <- Sites %>%
-  mutate(category = case_when(zoning == "Comparación y protección (2.1)" ~ 2.1, 
-                              zoning == "Conservación y uso no extractivo (2.2)" ~ 2.2,
-                              zoning == "Conservación y uso extractivo (2.3)" ~ 2.3,
-                              zoning == "Manejo especial (2.4)" ~ 2.4)) 
 
-
-
+################################################################################################
 
 #Now I only need to calculate the biomass for the UVC data, so that I can add these to the plot
-ordiplot(z2)
-ordihull(z2, groups = c(str_detect("Dummy"), str_detect("DOVS")))
 
 
+# PCO and dissimilarity calculations --------------------------------------
+
+#Applying a 4th root transformation to matrix
+x <- DOVS_mat^(1/4)
+#Calculating dissimilarity distance using vegan package, the default is Bray Curtis
+y <- vegdist(x, method = "bray")
+#Create a PCoA (Principal Co-ordinates Analysis) plot
+z <- wcmdscale(y, eig = T)
+#Show plot
+plot(z)
 
 
 
 ############# Data from FishDB, how many do I actually need to change ##########
 
-x <- UVC
-y <- x %>% select(ValidName, a, b, LengthType, LenLenRatio) %>% distinct() %>% 
-  drop_na() %>% filter(ValidName != c("Chelonia mydas", "Zalophus wollebaeki"))
+#Shows the length type data we have for each of the UVC species
+a <- UVC_clean %>% select(ValidName, LengthType) %>% distinct()
 
-y %>% distinct(ValidName) %>% arrange(ValidName)
-length(which(y$LengthType == "TL")) #There are 7 that are already TL
-#so all I need to find if I make my own column is 11 TL values for the species left.
 ################################################################################
 
 
