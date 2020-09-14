@@ -3,7 +3,7 @@
 # Author: Sara Færch Hansen
 # Assisting: Denisse Fierro Arcos
 # Version: 1
-# Date last updated: 2020-08-17
+# Date last updated: 2020-09-11
 # Aim: Compare UVC and DOVS data in the Galapagos related to the Master thesis of Sara Færch Hansen
 #############################################################
 
@@ -11,6 +11,10 @@
 library(tidyverse) 
 library(data.table)
 library(vegan)
+
+#General question, I have been reading about grouping data and since I use group_by fairly often in this script
+#I was considering what it means for the rest of the data analysis.
+#Should I use ungroup every time I have used group_by ? To make sure the groups do not create mistakes later on
 
 # Uploading data ----------------------------------------------------------
 #Loading UVC and DOVS data
@@ -183,74 +187,110 @@ DOVS %>% filter(!Period == "")
 
 #Calculate the biomass for DOVS using FishDB a and b values for FL
 str(DOVS) #LenLenRatio is character and needs to be numeric
-Biomass_DOVS <- DOVS %>% select(Site, Length_mm, N, Method, ValidName, a, b, 
+Biomass_DOVS <- DOVS %>% select(Site, Length_cm, N, Method, ValidName, a, b, 
                                 LengthType, LenLenRatio) %>%
   mutate(LenLenRatio = as.numeric(LenLenRatio)) %>% 
-  mutate(Biomass = (a*LenLenRatio*Length_mm)^b) %>% 
+  mutate(Biomass = (a*LenLenRatio*Length_cm)^b) %>% 
   mutate(Biomass_N = Biomass*N)
-#Denisse, could you double check this calculation
-#Also what do we do with rows that are missing lengths?
+#what do we do with rows that are missing lengths?
 
-#summing biomass for each species
-x <- Biomass_DOVS
-
-################ I cannot make this work. 
-#I am trying to sum up all the biomasses per species - so that I can move on to making the matrix to 
-#calculate dissimilarity
-x <- x %>% group_by(ValidName) %>% 
-  mutate(Biomass_sp = sum(Biomass_N))
-#summarise(Biomass_sp = sum(Biomass_N))
-
+#summing biomass for each species in Biomass_sp
+Biomass_DOVS <- Biomass_DOVS %>% 
+  group_by(Site, ValidName) %>% 
+  mutate(Biomass_sp = sum(Biomass_N)) %>%
+  ungroup(Site, ValidName)
 
 #Making matrix for dissimilarity calculation
-Biomass_DOVS_mat <- Biomass_DOVS %>% select(Site, Method, ValidName, Biomass_N) %>% 
+Biomass_DOVS_mat <- Biomass_DOVS %>% select(Site, Method, ValidName, Biomass_sp) %>% #Formerly we used Biomass_N
+  #but I changed it to Biomass_sp because that is the biomass for each species at the sites
   mutate(SiteMet = paste(Site, Method)) %>% 
   select(-c(Site, Method))
 
+any(is.na(Biomass_DOVS_mat))
 
+# NA's are introduced, because when there is no species ID e.g. Balistidae sp, there is
+#also no length measurement. Should I delete rows with NA's in the abundance columns?
 
-mat <- Biomass_DOVS_mat %>% pivot_wider(names_from = "ValidName", values_from = "Biomass_N") %>% 
-  column_to_rownames("SiteMet") %>% 
-  as.matrix() #%>% 
-  #replace_na(0)
+#Dropping rows with NA values and deleting duplicates
+DOVS_mat <- Biomass_DOVS_mat %>% drop_na() %>% 
+  filter(!duplicated(.))
 
-mat %>% head()
-
-#Making matrix to enable NMDS plot
-Abun_mat <- Abun %>%
-  pivot_wider(names_from = "SpeciesName", values_from = "Abundance") %>%
-  #Use the Site column as row names
+#Making matrix
+DOVS_mat <- DOVS_mat %>% 
+  pivot_wider(names_from = "ValidName", values_from = "Biomass_sp") %>% 
   column_to_rownames("SiteMet") %>%
-  #Turn this tibble into a matrix for further processing
   as.matrix() %>% 
-  #replacing NA values with zero
   replace_na(0)
 
+any(is.na(DOVS_mat))
+DOVS_mat %>% head()
+
+#Dummy_data to plot two different data sets
+Dummy_data <- Biomass_DOVS_mat
+Dummy_data$SiteMet <- Dummy_data$SiteMet %>% str_replace_all("DOVS", "Dummy")
+#Dropping rows with NA values and deleting duplicates
+Dummy_data <- Dummy_data %>% drop_na() %>% 
+  filter(!duplicated(.))
+Dummy_data$Biomass_sp <- Dummy_mat$Biomass_sp*runif(361, min = 10, max = 100)
+
+#Making matrix dummy_data
+Dummy_mat <- Dummy_data %>% 
+  pivot_wider(names_from = "ValidName", values_from = "Biomass_sp") %>% 
+  column_to_rownames("SiteMet") %>%
+  as.matrix() %>% 
+  replace_na(0)
+
+#Combining DOVS and dummy_data
+DOVS_dummy <- rbind(DOVS_mat, Dummy_mat)
+
+#Applying a 4th root transformation to matrix
+x <- DOVS_mat^(1/4)
+x2 <- DOVS_dummy^(1/4)
+#Calculating dissimilarity distance using vegan package, the default is Bray Curtis
+y <- vegdist(x, method = "bray")
+y2 <- vegdist(x2, method = "bray")
+#Create a PCoA (Principal Co-ordinates Analysis) plot
+z <- wcmdscale(y, eig = T)
+z2 <- wcmdscale(y2, eig = T)
+#Show plot
+plot(z)
+plot(z2)
+
+#binding PCO coordinates to dataframe
+pco1 <- rbind(Dummy_data, Biomass_DOVS_mat) %>% 
+  filter(!duplicated(.))
+
+
+pco2 <- as.data.frame(z2$points[,1:2])
+library(data.table)
+pco2 <- setDT(pco2, keep.rownames = TRUE)[]
+pco2 <- pco2 %>% rename(Sites = rn)
+pco2 <- pco2 %>% mutate(Method = case_when(Sites == "DOVS" ~ "DOVS",
+                                           Sites == "Dummy" ~ "Dummy"))
+#Not working....
+
+(Method = case_when(Sites == "DOVS" ~ "DOVS",
+                    Sites == "Dummy" ~ "Dummy"))
+str(pco2)
+           
+           #replace(Sites, c("DOVS", "Dummy"), ""))
   
-################## Data from fishbase ###############
-#Getting length data from fishbase.org using rfishbase
-library(rfishbase)
+  Zones <- Sites %>%
+  mutate(category = case_when(zoning == "Comparación y protección (2.1)" ~ 2.1, 
+                              zoning == "Conservación y uso no extractivo (2.2)" ~ 2.2,
+                              zoning == "Conservación y uso extractivo (2.3)" ~ 2.3,
+                              zoning == "Manejo especial (2.4)" ~ 2.4)) 
 
-#Example from package
-## Not run: 
-a <- length_length("Oreochromis niloticus", server = "fishbase")
-## End(Not run)
 
-#Using species list from UVC to get length data
-b1 <- UVC %>% distinct(ValidName) %>% drop_na(ValidName)
-b2 <- length_length(b1$ValidName, fields = c("Species", "Length1", "Length2", "a", "b", "Type"), 
-                    server = "fishbase")
-#a lot of the "a" values are zero - I feel like that is wrong.
 
-b1 %>% distinct(ValidName) %>% arrange(ValidName)
-b2 %>% distinct(Species) %>% arrange(Species)
 
-#There are 3 species which are in the species list, but not in the database
-b1$ValidName[!(b1$ValidName %in% b2$Species)]
-#"Chelonia mydas" = green sea turtle. "Zalophus wollebaeki" = galapagos sea lion.
-#"Aetobatus laticeps" = Pacific eagle ray, there is no length weight data on fishbase.
-#Aetobatus laticeps is in the FishDB data.
-################################################################################
+#Now I only need to calculate the biomass for the UVC data, so that I can add these to the plot
+ordiplot(z2)
+ordihull(z2, groups = c(str_detect("Dummy"), str_detect("DOVS")))
+
+
+
+
 
 ############# Data from FishDB, how many do I actually need to change ##########
 
@@ -336,7 +376,7 @@ Abun_mat <- Abun %>%
 
 #Applying a 4th root transformation to matrix
 x <- sqrt(sqrt(Abun_mat))
-#Calculating disimilarity distance using vegan package, the default is Bray Curtis
+#Calculating dissimilarity distance using vegan package, the default is Bray Curtis
 y <- vegdist(x, method="bray")
 #Create a PCoA (Principal Co-ordinates Analysis) plot
 z <- wcmdscale(y, eig = T)
