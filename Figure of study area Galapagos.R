@@ -9,7 +9,7 @@
 library(sf)
 library(tidyverse) #tidyverse includes ggplot2 so I have removed it
 library(sp)
-library(janitor)
+library(janitor) # there is no need to include this one as you one use it once - DFA
 
 # Accessing data ----------------------------------------------------------
 #Loading shapefiles - DFA
@@ -91,6 +91,7 @@ Zones <- Sites %>%
                               zoning == "Conservación y uso no extractivo (2.2)" ~ 2.2,
                               zoning == "Conservación y uso extractivo (2.3)" ~ 2.3,
                               zoning == "Manejo especial (2.4)" ~ 2.4)) 
+
 Zones <- Zones %>%
   group_by(zoning) %>%
   summarise(count = n())%>% 
@@ -100,4 +101,17 @@ Zones <- Zones %>%
                              zoning == "Conservación y uso extractivo (2.3)" ~ "open",
                              zoning == "Manejo especial (2.4)" ~ "closed"))
 
+
+#There is an easier way to do the above. Since you already have the codes inside the column
+#zoning, you could just extract the numbers using str_extract() - DFA
+Zones1 <- Sites %>% 
+  #The pattern used means values between 0-9 (essentially numbers), followed by a period (.)
+  #and followed by numbers between 0-9.
+  mutate(category = str_extract(zoning, "[0-9][.][0-9]"),
+         #We can now add opened or closed to fishing really easily
+         #Basically if it is not 2.3, then it is closed, if it is is is opened.
+         fishing = case_when(category != 2.3 ~ "closed",
+                             TRUE ~ "opened")) %>% 
+  group_by(category, fishing) %>% 
+  summarise(N = n())
   

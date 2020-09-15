@@ -16,6 +16,9 @@ library(vegan)
 #I was considering what it means for the rest of the data analysis.
 #Should I use ungroup every time I have used group_by ? To make sure the groups do not create mistakes later on
 
+#DFA answers: I think it would be safer to do so, yes.
+
+
 # Uploading data ----------------------------------------------------------
 #Loading UVC and DOVS data
 UVC <- read.csv(file = "Data/UVC_all_clean.csv", header = TRUE,
@@ -104,17 +107,17 @@ FishDB <- read_csv("https://raw.githubusercontent.com/lidefi87/MangroveProject_C
 UVC_clean <- UVC %>% select(-c(Time, Diver, Current, Temperature, Thermocline_depth, 
                   Water_temp_over_therm, Water_temp_below_therm, Vis_over_therm,
                   Vis_below_therm, SPECIES, Comments, Habitat_type_RSM, Rugosity_0_3,
-                  Inclination_0_3, Rocky_reef_max_depth))
-
-UVC_clean2 <- UVC_clean %>% 
+                  Inclination_0_3, Rocky_reef_max_depth)) %>% 
+  #There is no need to create an intermediate variables, I have linked it all to UVC_clean
   left_join(FishDB %>% select(ScientificName, ValidName, Family, Genus, a, b, 
                               LengthType, LenLenRatio),
             by = c("SpeciesName" = "ScientificName")) 
+
 #Prior to removing the SpeciesName column, we should check for NA values in the 
 #ScientificName column. This way we can identify the species that are not included in our
 #FishDB
 #First, let's extract the rows with NA values under ValidName, but keeping all columns
-UVC_clean2 %>% filter(is.na(ValidName), .preserve = T) %>% 
+UVC_clean %>% filter(is.na(ValidName), .preserve = T) %>% 
   #Now let's extract the unique values of SpeciesNames for which we do not have a valid name
   distinct(SpeciesName)
 #Updated FishDB so we now have Decapterus sanctaehelenae (now known as D. punctatus) 
@@ -123,13 +126,11 @@ UVC_clean2 %>% filter(is.na(ValidName), .preserve = T) %>%
 #Talk to Pelayo about this.
 
 #Now that corrections have been made, remove any non-fish species
-UVC_clean <- UVC_clean2 %>% 
+UVC_clean <- UVC_clean %>% 
   #We keep only observations for which SpeciesNames is not included in the NonFish vector
   filter(!ValidName %in% NonFish) 
   #Remove SpeciesName column when D. santaehelenae is sorted out
   # %>% select(-SpeciesName)
-#Remove this variable as it is no longer needed
-rm(UVC_clean2)
 
 #Correcting species in DOVS
 #The following Families and Genuses only have 1 specie in the GMR
@@ -151,26 +152,21 @@ DOVS <- DOVS %>%
                                  TRUE ~ SpeciesName))
 
 #Using join to keep correct names of species in DOVS data
-DOVS2 <- DOVS %>% 
-  #Correcting Mycteroperca sp to M. olfax
-  mutate(SpeciesName = case_when(SpeciesName == "Mycteroperca sp" ~ "Mycteroperca olfax",
-                                 TRUE ~ SpeciesName)) %>%  #Correction of Mycteroperca sp. to M. olfax 
-  #can be deleted here, because it is now corrected further up in the code. Right??
+DOVS <- DOVS %>% 
   left_join(FishDB %>% select(ScientificName, ValidName, a, b, LengthType, LenLenRatio),
             by = c("SpeciesName" = "ScientificName"))
 
 #We follow the same steps as before
-DOVS2 %>% filter(is.na(ValidName), .preserve = T) %>% 
+DOVS %>% filter(is.na(ValidName), .preserve = T) %>% 
   #Now let's extract the unique values of SpeciesNames for which we do not have a valid name
   distinct(SpeciesName) # I get a zero here it writes: "[1] SpeciesName" and "<0 rows> (or 0-length row.names)"
 #I think that means we have valid names for all species ?
+#DFA answers: Yes, it does
 
 #Now we remove non fish species
-DOVS <- DOVS2 %>% 
+DOVS <- DOVS %>% 
   filter(!ValidName %in% NonFish) %>% 
   select(-c(SpeciesName))
-#Remove duplicate variable no longer needed
-rm(DOVS2)
 
 #No NAs and the two non-fish species are also removed
 DOVS %>% distinct(ValidName) %>% arrange(ValidName) 
@@ -206,28 +202,52 @@ str(DOVS) #LenLenRatio is character and needs to be numeric
 Biomass_DOVS <- DOVS %>% select(Site, Length_cm, N, Method, ValidName, a, b, 
                                 LengthType, LenLenRatio) %>%
   mutate(LenLenRatio = as.numeric(LenLenRatio)) %>% 
-  mutate(Biomass = (a*LenLenRatio*Length_cm)^b) %>% 
-  mutate(Biomass_N = Biomass*N)
+  #This is not correct. The fish biomass equation is W = a*L^b 
+  #In maths, operations are done in a particular order, check out this website for more
+  #info: https://www.mathsisfun.com/operation-order-bodmas.html
+  #Brackets are super important and the way you use them and have a significant impact
+  #on the results. The equation you used (a*LenLenRatio*Length_cm)^b) is NOT equal to
+  #the biomass equation. You first transform your length, then apply the exponent b and
+  #finally multiply by a, so your equation should be: a*((LenLenRatio*Length_cm)^b)
+  mutate(Biomass = (a*LenLenRatio*Length_cm)^b,
+         #I am adding the corrected version so you can compare the difference in calculations
+         #Remove the line above after you compare results.
+         BiomassCorrectedEq = a*((LenLenRatio*Length_cm)^b)) %>% 
+  mutate(Biomass_N = BiomassCorrectedEq*N)
 #what do we do with rows that are missing lengths?
+
+#DFA answers: From memory, Pelayo said we will use the mean length for that species on that
+#site. I am sure this is in a previous email, check with Pelayo.
 
 #summing biomass for each species in Biomass_sp
 Biomass_DOVS <- Biomass_DOVS %>% 
-  group_by(Site, ValidName) %>% 
-  mutate(Biomass_sp = sum(Biomass_N)) %>%
+  group_by(Site, Method, ValidName) %>% 
+  #You want to summarise, not mutate. Mutate changes the values in that column. If unsure
+  #about what a function does, check documentation, and use a subset of your data to see
+  #if it does what you need
+  summarise(Biomass_sp = sum(Biomass_N)) %>%
   ungroup(Site, ValidName)
 
 #Making matrix for dissimilarity calculation
-Biomass_DOVS_mat <- Biomass_DOVS %>% select(Site, Method, ValidName, Biomass_sp) %>% #Formerly we used Biomass_N
+Biomass_DOVS_mat <- Biomass_DOVS %>% 
+  #There is no need to select anything as these are the only columns inside the data frame
+  # select(Site, Method, ValidName, Biomass_sp) %>% #Formerly we used Biomass_N
   #but I changed it to Biomass_sp because that is the biomass for each species at the sites
-  mutate(SiteMet = paste(Site, Method)) %>% 
-  select(-c(Site, Method))
+  #You can use unite instead of mutate
+  unite(SiteMet, Site, Method, sep = " ")
 
 any(is.na(Biomass_DOVS_mat))
 
 # NA's are introduced, because when there is no species ID e.g. Balistidae sp, there are sometimes
 #also no length measurement. Should I delete rows with NA's in the abundance columns?
 
+#DFA answers: You need to check with Pelayo what was done with individuals that were not
+#identified to species level. An idea may be to apply the mean biomass of that Genus/Family
+
 #Dropping rows with NA values and deleting duplicates #Is this the correct thing to do?
+
+#DFA answers: No, we need to check why we have NAs values to begin with, and try to find
+#ways to minimise the data we are losing.
 DOVS_mat <- Biomass_DOVS_mat %>% drop_na() %>% 
   filter(!duplicated(.))
 
@@ -240,6 +260,32 @@ DOVS_mat <- DOVS_mat %>%
 
 any(is.na(DOVS_mat))
 DOVS_mat %>% head()
+
+
+#DFA comments: Before we are able to make any comparisons in biomass results, we need to
+#ensure biomass was measured within a given area. If we do not consider the area, and we
+#happen to sample a longer transect in UVCs than in DOVS, we will get a difference simply
+#because our data was obtained for a different total area, and not necessarily because
+#there is an actual difference between methods.
+
+#In regards to your code, there is no need to create so many intermediate variables. This
+#is when the tidyverse becomes handy. You can do whatever calculations or manipulation you
+#need and just save the end result you are after. There is no point in making temporary
+#variables if you will delete them later. It is often confusing to have intermediate 
+#variables and also use up your memory. Avoid whenever possible.
+
+#Name your variables something useful. Having variables named x, y, z is not advisable
+#unless they are temporary only.
+
+#Make sure you comment your code. This is really handy not only for you when you come back
+#to check it after months of not working on this project, but also for other people who 
+#may want to use it. Plus, it is always better to have nicely commented code on your 
+#portfolio.
+
+#Finally, check your output. I cannot stress this enough. You need to know if what you are
+#trying to do with your code is what you actually get. The biomass calculation for example,
+#results were less than 1 gram for sharks of over 2 m. If results do not make sense, then 
+#you know a mistake has been made and a correction is needed.
 
 ######################### Dummy data, until I have UVC data #############################
 #Dummy_data to plot two different data sets
@@ -273,7 +319,7 @@ y <- vegdist(x, method = "bray")
 #Create a PCoA (Principal Co-ordinates Analysis) plot
 z <- wcmdscale(y, eig = T)
 #Show plot
-plot(z)
+plot(z, type = "points") #Add type points to remove labels
 
 #binding PCO coordinates to dataframe
 pco1 <- as.data.frame(z$points[,1:2])
@@ -307,6 +353,8 @@ plot(z)
 
 
 ############# Data from FishDB, how many do I actually need to change ##########
+#DFA answers: Check the dataset, how many species are calculated using TL, how many are not?
+#Just get the info for the species you need.
 
 #Shows the length type data we have for each of the UVC species
 a <- UVC_clean %>% select(ValidName, LengthType) %>% distinct()
@@ -320,24 +368,26 @@ a <- UVC_clean %>% select(ValidName, LengthType) %>% distinct()
 #While vegan::diversity() will allow you to calculate diversity indices
 
 #Abundance matrix for species richness calculations
-Abun_DOVS <- subset(DOVS, select = c("Site", "ValidName", "Method", "N")) %>% 
-  replace(is.na(.), 0) %>% 
-  group_by(Site, ValidName) %>% 
-  mutate(N_sum = sum(N)) %>% 
+Abun_DOVS <- DOVS %>% #No need to subset here
+  replace(is.na(.), 0) %>% #Why are you replace NAs for zeroes?
+  group_by(Site, ValidName, Method) %>% 
+  #As above, you want summarise, not mutate
+  summarise(N_sum = sum(N)) %>% 
   ungroup(Site, ValidName) %>% 
-  mutate(SiteMet = paste(Site, Method)) %>% 
-  select(-c(Site, Method, N)) %>%
-  mutate(N_sum = as.numeric(N_sum)) %>% 
+  #As above, you want unite, not mutate
+  unite(SiteMet, Site, Method, sep = " ") %>%
+  # mutate(N_sum = as.numeric(N_sum)) %>% No need to do this as you have just calculated
+  #this column and it is definitely numeric
   distinct()
 
-Abun_DOVS_mat <- x %>% 
+Abun_DOVS_mat <- x %>% #I do not know what this x refers to, but it does not run
   pivot_wider(names_from = "ValidName", values_from = "N_sum") %>% 
   column_to_rownames("SiteMet") %>%
   as.matrix() %>% 
   replace_na(0)
 
 #Species richness for sites
-DOVS_richness <- specnumber(x_mat)
+DOVS_richness <- specnumber(x_mat) #x_mat does not exist
 
 #species accumulation curve
 spa_DOVS <- specaccum(x_mat)
@@ -421,5 +471,6 @@ orditorp(NMDS, display = "sites", col = c(rep("green",78), rep("blue",68)),
 #Maybe this can be done in a nicer way? 
 #No matter what it seems like the two treatments DOVS and UVC are overlapping in their abundances.
 
-
+#DFA answers: If they overlap, it simply means that there is no difference in what you are
+#plotting. If you want a statistical test, check PERMANOVA and PERMDISP.
 
