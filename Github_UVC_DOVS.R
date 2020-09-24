@@ -3,7 +3,7 @@
 # Author: Sara Færch Hansen
 # Assisting: Denisse Fierro Arcos
 # Version: 1
-# Date last updated: 2020-09-11
+# Date last updated: 2020-09-24
 # Aim: Compare UVC and DOVS data in the Galapagos related to the Master thesis of Sara Færch Hansen
 #############################################################
 
@@ -24,28 +24,40 @@ library(vegan)
 UVC <- read.csv(file = "Data/UVC_all_clean.csv", header = TRUE,
                 stringsAsFactors = FALSE) %>% select(-X)
 
-DOVS <- read.csv(file = "Data/DOVS_clean.csv", header = TRUE, 
+DOVS_FullDB <- read.csv(file = "Data/DOVS_clean.csv", header = TRUE, 
                  stringsAsFactors = FALSE) %>% select(-X)
 
 #Checking if the two methods have the same number of sites
-unique(DOVS$Site)
+unique(DOVS_FullDB$Site)
 unique(UVC$Site)
 #They do not have the same number of sites.
 
-# Tidying up data set ------------------------------------------------------
-DOVS %>%
-  #First we will check unique values for Family, Genus and Species
-  distinct(Family, Genus, Species) %>% 
-  arrange(Family, Genus)
-#Results suggest that there are a number of Genus with an additional blank space at the
-#end. We also have a blank row at the top, which are for unknown species.
+#Vector containing names of non fish species
+NonFish <- c("Eretmochelys imbricata", "Chelonia mydas", "Zalophus wollebaeki", 
+             "Phalacrocorax harrisi", "Cardisoma crassum", "Panulirus gracilis",
+             "Scyllarides astori", "Spheniscus mendiculus", "Arctocephalus galapagoensis",
+             "Lepidochelys olivacea")
 
-#Tidying up data
-DOVS <- DOVS %>% 
-  #Removing Comment column
-  select(-c(Comment)) %>% 
-  #Removing empty rows in Family 
-  filter(Family != "") %>% 
+
+#Access to the Fish data set with correct names and a/b variables to calculate biomass
+FishDB <- read_csv("https://raw.githubusercontent.com/lidefi87/MangroveProject_CDF/master/Data/FishDB.csv")
+
+#Loading site keys - Spreadsheet matching site names in both methods - DFA
+SiteKeys <- openxlsx::read.xlsx("Data/SiteKeys.xlsx") #This is how you load things from Excel
+
+# Tidying up DOVS data -----------------------------------------------------
+#I am removing any unnecessary code which was here as an explanation only. I have also
+#merged all data cleaning steps for DOVS into one chunk so it is easier to follow. You can
+#do the same for the UVC data - DFA
+
+#Tidying up data - Saving the clean dataset as a different variable - DFA
+DOVS <- DOVS_FullDB %>% 
+  #Removing columns that are not needed for this analysis - DFA
+  select(-c(Comment, Stage, Depth)) %>% 
+  #Removing empty rows in Family and period
+  filter(Family != "" & Period != "") %>% 
+  #Removing rows with no length information - DFA
+  drop_na(Length_mm) %>% 
   #Rename Number_individuals column
   rename("N" = "Number_individuals") %>% 
   #Removing spaces in Genus column
@@ -61,26 +73,154 @@ DOVS <- DOVS %>%
                                    Genus == "" ~ paste(Family, Species, sep = " "))) %>%
   #Since there is only one species of Mycteroperca, Mycteroperca sp is changes to Mycteroperca olfax
   mutate(SpeciesName = case_when(SpeciesName == "Mycteroperca sp" ~ "Mycteroperca olfax",
-                                                         TRUE ~ SpeciesName))
-
-#We can check our progress
-DOVS %>% 
-  distinct(Family, Genus, Species) %>% 
-  arrange(Family, Genus)
-
-#Correcting species that are identified to genus level, 
-#but only have 1 species in their genus in the GMR
-DOVS <- DOVS %>% 
-  mutate(SpeciesName = case_when(SpeciesName == "Zanclus sp" ~ "Zanclus cornutus",
+                                 #Correcting species that are identified to genus level, 
+                                 #but only have 1 species in their genus in the GMR
+                                 SpeciesName == "Zanclus sp" ~ "Zanclus cornutus",
                                  SpeciesName == "Aulostomidae sp" ~ "Aulostomus chinensis",
                                  SpeciesName == "Aulostomus sp" ~ "Aulostomus chinensis",
                                  SpeciesName == "Holacanthus sp" ~ "Holacanthus passer",
                                  SpeciesName == "Sufflamen sp" ~ "Sufflamen verres",
                                  SpeciesName == "Uraspis sp" ~ "Uraspis helvola",
-                                 TRUE ~ SpeciesName))
+                                 TRUE ~ SpeciesName)) %>% 
+  #Using join to keep correct names of species in DOVS data
+  left_join(FishDB %>% select(ScientificName, ValidName, a, b, LengthType, LenLenRatio),
+            by = c("SpeciesName" = "ScientificName")) %>% 
+  #Now we remove non fish species
+  filter(!ValidName %in% NonFish) %>% 
+  select(-c(SpeciesName)) %>% 
+#We are now going to standarise site names across both methods. I have only included sites
+#that are duplicated in both datasets available in the GitHub repo. Go through them and 
+#edit if necessary. The column site name is the site with no spaces and sitecode is a 
+#shorten version of the site name and island that can be used in graphs - DFA
+  select(-Island) %>% 
+  #Using inner join so only site names that appear in both dataframes are kept - DFA
+  inner_join(SiteKeys %>% select(-UVC), by = c("Site"="DOVS")) %>% 
+  #Remove the column Site so only the standarised names remain
+  select(-Site) %>% 
+  #Remove any accents in the names of sites and islands
+  mutate(SiteName = stringi::stri_trans_general(SiteName, "Latin-ASCII"),
+         Island = stringi::stri_trans_general(Island, "Latin-ASCII"))
+  
 
-#Checking unique species ID's in DOVS and UVC
-DOVS %>% distinct(SpeciesName) %>% arrange(SpeciesName)
+#Note that once the data has been cleaned, most of the rows with multiple individuals have
+#disappeared. So I am going to go back to the raw data and show you how we can deal with
+#these rows - DFA
+MultiLength <- DOVS_FullDB %>% 
+  #Removing columns that are not needed for this analysis - DFA
+  select(-c(Comment, Stage, Depth)) %>% 
+  #Removing empty rows in Family and period
+  filter(Family != "" & Period != "") %>% 
+  #Removing rows with no length information - DFA
+  drop_na(Length_mm) %>% 
+  #Rename Number_individuals column
+  rename("N" = "Number_individuals") %>% 
+  #Keep rows with more than one individual
+  filter(N > 1) %>% 
+  #Remove any instances where the precision is > 10% of length
+  filter(Precision_mm < Length_mm*0.1)
+
+#We can check the total number of actual measurements against N - DFA
+x <- MultiLength %>% 
+  group_by(Site, Period, Genus, Species, N, Length_mm) %>% 
+  summarise(counts = n()) %>% 
+  group_by(Site, Period, Genus, Species, N) %>% 
+  summarise(counts = sum(counts))
+#Here we can see that there are some cases were there are more measurements than individuals
+#reported in N. Maybe this means that in these cases, they underreported individuals, but
+#it could also be that they took multiple measurements for the same individual. Check with
+#Pelayo what he wants to do, but I will keep the number of measurements identified as N
+x %>% 
+  filter(counts > N)
+
+
+#For the rows were there is only one measurement, we will use the same measurement for 
+#all individuals in N
+#First we will extract these rows from the MultiLength set
+temp <- MultiLength %>% 
+  right_join(x %>% filter(counts == 1)) %>% 
+  #Repeat each row as many times as stated by N
+  uncount(N) %>% 
+  rename("N" = "counts") %>% 
+  relocate(N, .before = Method)
+
+#Now we remove rows from MultiLength
+MultiLength <- MultiLength %>% 
+  anti_join(x %>% filter(counts == 1)) %>% 
+  #And add the corrected information (temp) to the MultiLength variable
+  bind_rows(temp)
+#Remove temp because we do not need it
+rm(temp)
+
+#Remove the rows we have dealt with
+x <- x %>% 
+  filter(counts > 1)
+
+#We will check instances when N is the same as the amount of measurements
+temp <- MultiLength %>% 
+  right_join(x %>% filter(counts == N)) %>% 
+  #Change N to 1
+  mutate(N = 1) %>% 
+  select(-counts)
+
+#Remove the rows we have dealt with
+x <- x %>% 
+  filter(counts != N)
+
+#We will now extract the rows that match the items left to correct
+temp <- MultiLength %>% 
+  right_join(x %>% filter(counts < N)) %>% 
+  #Now we need an average length
+  group_by(Site, Period, Genus, Species, N) %>% 
+  summarise(mLength = mean(Length_mm)) %>% 
+  #Join with problem rows to calculate how many times we need to apply mean length
+  left_join(x) %>% 
+  #Calculate new N
+  mutate(NewCount = N-counts) %>% 
+  select(-counts) 
+
+MLcorr <- bind_rows(MultiLength %>% 
+                      right_join(temp %>% select(-c(mLength, NewCount))) %>% 
+                      mutate(N = 1),
+                    MultiLength %>% 
+                      right_join(temp) %>% 
+                      mutate(N = NewCount,
+                             Length_mm = mLength) %>% 
+                      distinct(Site, Period, Genus, Species, N, .keep_all = T) %>% 
+                      select(-c(mLength, NewCount)) %>% 
+                      uncount(N),
+                    MultiLength %>% 
+                      anti_join(temp %>% select(-c(mLength, NewCount)))) %>% 
+  mutate(N = case_when(is.na(N) ~ 1,
+                       TRUE ~ N))
+#Remove temp because we do not need it
+rm(temp)
+
+#Remove the rows we have dealt with
+x <- x %>% 
+  filter(counts > N)
+#We only have left the rows for which we have more measurements than individuals reported
+#under N. Remember to check with Pelayo about what to do with these ones.
+
+#Once they are all corrected, we could apply corrections to the dataset
+#I will show you below how to do this with the raw data because we do not have many examples
+#in the clean DOVS dataset
+corrDOVS <- DOVS_FullDB %>% 
+  #Removing columns that are not needed for this analysis - DFA
+  select(-c(Comment, Stage, Depth)) %>% 
+  #Removing empty rows in Family and period
+  filter(Family != "" & Period != "") %>% 
+  #Removing rows with no length information - DFA
+  drop_na(Length_mm) %>% 
+  #Rename Number_individuals column
+  rename("N" = "Number_individuals") %>% 
+  #Keep rows with more than one individual
+  filter(N == 1) %>% 
+  #Remove any instances where the precision is > 10% of length
+  filter(Precision_mm < Length_mm*0.1) %>% 
+  bind_rows(MLcorr)
+
+
+# Tidying up UVC data -----------------------------------------------------
 UVC %>% distinct(SPECIES) %>% arrange(SPECIES)
 
 #Correcting misspelled species names in UVC data
@@ -98,18 +238,7 @@ UVC$SpeciesName <- UVC$SPECIES %>%
 #Checking that the unique species are now correct in UVC
 UVC %>% distinct(SpeciesName) %>% arrange(SpeciesName)
 
-
 # Cleaning non-fish species and species ID's ----------------------------------------------------
-#Vector containing names of non fish species
-NonFish <- c("Eretmochelys imbricata", "Chelonia mydas", "Zalophus wollebaeki", 
-             "Phalacrocorax harrisi", "Cardisoma crassum", "Panulirus gracilis",
-             "Scyllarides astori", "Spheniscus mendiculus", "Arctocephalus galapagoensis",
-             "Lepidochelys olivacea")
-
-
-#Access to the Fish data set with correct names and a/b variables to calculate biomass
-FishDB <- read_csv("https://raw.githubusercontent.com/lidefi87/MangroveProject_CDF/master/Data/FishDB.csv")
-
 #Using join to keep correct names of species in UVC data
 #We do not need all columns in the UVC data set, dropping columns that are not needed
 UVC_clean <- UVC %>% select(-c(Time, Diver, Current, Temperature, Thermocline_depth, 
@@ -139,24 +268,6 @@ UVC_clean <- UVC_clean %>%
   filter(!ValidName %in% NonFish) 
   #Remove SpeciesName column when D. santaehelenae is sorted out
   # %>% select(-SpeciesName)
-
-#Using join to keep correct names of species in DOVS data
-DOVS <- DOVS %>% 
-  left_join(FishDB %>% select(ScientificName, ValidName, a, b, LengthType, LenLenRatio),
-            by = c("SpeciesName" = "ScientificName"))
-
-#We follow the same steps as before
-DOVS %>% filter(is.na(ValidName), .preserve = T) %>% 
-  #Now let's extract the unique values of SpeciesNames for which we do not have a valid name
-  distinct(SpeciesName) #There are valid names for all species
-
-#Now we remove non fish species
-DOVS <- DOVS %>% 
-  filter(!ValidName %in% NonFish) %>% 
-  select(-c(SpeciesName))
-
-#No NAs and the two non-fish species are also removed
-DOVS %>% distinct(ValidName) %>% arrange(ValidName) 
 
 
 # Biomass calculations ----------------------------------------------------
