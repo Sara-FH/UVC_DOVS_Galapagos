@@ -1,22 +1,16 @@
-#############################################################
+###################################################################################################################
 # Title: Github data cleaning and analysis UVC and DOVS Galapagos
 # Author: Sara Færch Hansen
 # Assisting: Denisse Fierro Arcos
 # Version: 1
 # Date last updated: 2020-09-24
 # Aim: Compare UVC and DOVS data in the Galapagos related to the Master thesis of Sara Færch Hansen
-#############################################################
+###################################################################################################################
 
 # Uploading libraries -----------------------------------------------------
 library(tidyverse) 
 library(data.table)
 library(vegan)
-
-#General question, I have been reading about grouping data and since I use group_by fairly often in this script
-#I was considering what it means for the rest of the data analysis.
-#Should I use ungroup every time I have used group_by ? To make sure the groups do not create mistakes later on
-
-#DFA answers: I think it would be safer to do so, yes.
 
 
 # Uploading data ----------------------------------------------------------
@@ -30,7 +24,7 @@ DOVS_FullDB <- read.csv(file = "Data/DOVS.csv", header = TRUE,
 #Checking if the two methods have the same number of sites
 unique(DOVS_FullDB$Site)
 unique(UVC$Site)
-#They do not have the same number of sites.
+#They do not have the same number of sites - also they have different names.
 
 #Vector containing names of non fish species
 NonFish <- c("Eretmochelys imbricata", "Chelonia mydas", "Zalophus wollebaeki", 
@@ -45,17 +39,28 @@ FishDB <- read_csv("https://raw.githubusercontent.com/lidefi87/MangroveProject_C
 #Loading site keys - Spreadsheet matching site names in both methods - DFA
 SiteKeys <- openxlsx::read.xlsx("Data/SiteKeys.xlsx") #This is how you load things from Excel
 
+#Loading data for sites open or closed to fishing
+Status <- openxlsx::read.xlsx("Data/Bacalao_MagicMysteryTour_GPS_Coordinates_Respaldo.xlsx") %>% 
+  select(-c(X9, X10))
+
+#Loading data for site length
+Site_length <- openxlsx::read.xlsx("Data/Periods & Transect Lengths_Bacalao Magic mystery tour_2014.xlsx")
+#Time and date is read wrong
+
+
 # Tidying up DOVS data -----------------------------------------------------
 #I am removing any unnecessary code which was here as an explanation only. I have also
 #merged all data cleaning steps for DOVS into one chunk so it is easier to follow. You can
 #do the same for the UVC data - DFA
 
-#Tidying up data - Saving the clean dataset as a different variable - DFA
+#Tidying up DOVS data - Saving the clean data set as a different variable - DFA
 DOVS <- DOVS_FullDB %>% 
   #Removing columns that are not needed for this analysis - DFA
   select(-c(Comment, Stage, Depth)) %>% 
   #Removing empty rows in Family and period
   filter(Family != "" & Period != "") %>% 
+  #Adding 1 when N is NA, as all those with measurements must have 1 individual
+  mutate(N = replace_na(N, 1)) %>% 
   #Removing rows with no length information - DFA
   drop_na(Length_mm) %>% 
   #Removing spaces in Genus column
@@ -100,6 +105,15 @@ DOVS <- DOVS_FullDB %>%
   mutate(SiteName = stringi::stri_trans_general(SiteName, "Latin-ASCII"),
          Island = stringi::stri_trans_general(Island, "Latin-ASCII"))
 
+#Make sure site names are the same in DOVS and UVC
+#Make sure the species are correct - e.g. from species list
+#Maybe delete individuals smaller than 30 cm
+#Make column with area of each site in square meters, width always 5 m
+#for this use 
+
+
+# Cleaning multiple individuals with one measurement for raw data ---------
+
 
 #Note that once the data has been cleaned, most of the rows with multiple individuals have
 #disappeared. So I am going to go back to the raw data and show you how we can deal with
@@ -121,14 +135,14 @@ x <- MultiLength %>%
   group_by(Site, Period, Genus, Species, N, Length_mm) %>% 
   summarise(counts = n()) %>% 
   group_by(Site, Period, Genus, Species, N) %>% 
-  summarise(counts = sum(counts))
+  summarise(counts = sum(counts)) %>% 
+  ungroup()
 #Here we can see that there are some cases were there are more measurements than individuals
 #reported in N. Maybe this means that in these cases, they underreported individuals, but
 #it could also be that they took multiple measurements for the same individual. Check with
 #Pelayo what he wants to do, but I will keep the number of measurements identified as N
 x %>% 
   filter(counts > N)
-
 
 #For the rows were there is only one measurement, we will use the same measurement for 
 #all individuals in N
@@ -173,7 +187,8 @@ temp <- MultiLength %>%
   left_join(x) %>% 
   #Calculate new N
   mutate(NewCount = N-counts) %>% 
-  select(-counts) 
+  select(-counts) %>% 
+  ungroup()
 
 MLcorr <- bind_rows(MultiLength %>% 
                       right_join(temp %>% select(-c(mLength, NewCount))) %>% 
@@ -198,7 +213,7 @@ x <- x %>%
 #We only have left the rows for which we have more measurements than individuals reported
 #under N. Remember to check with Pelayo about what to do with these ones.
 
-#Once they are all corrected, we could apply corrections to the dataset
+#Once they are all corrected, we could apply corrections to the data set
 #I will show you below how to do this with the raw data because we do not have many examples
 #in the clean DOVS dataset
 corrDOVS <- DOVS_FullDB %>% 
@@ -218,57 +233,55 @@ corrDOVS <- DOVS_FullDB %>%
 
 
 # Tidying up UVC data -----------------------------------------------------
-UVC %>% distinct(SPECIES) %>% arrange(SPECIES)
 
-#Correcting misspelled species names in UVC data
-UVC$SpeciesName <- UVC$SPECIES %>%
-  recode(., "bonito" = "Sarda orientalis", #The bonito in Ecuador refers to Sarda orientalis
-         "Paralabrax albomaclatus" = "Paralabrax albomaculatus",
-         "yellow tail snapper" = "Lutjanus argentiventris",
-         "Zalophus wolebacki" = "Zalophus wollebaeki",
-         "Hoplopagrus guenteri" = "Hoplopagrus guentherii",
-         "Zalophus wollebackii" = "Zalophus wollebaeki",
-         "Zalophus wollebacki" = "Zalophus wollebaeki",
-         "Heterodonthus quoyi" = "Heterodontus quoyi",
-         "Myvteroperca olfax" = "Mycteroperca olfax")
+#Checking species names in UVC data
+UVC %>% distinct(Species) %>% arrange(Species)
 
-#Checking that the unique species are now correct in UVC
-UVC %>% distinct(SpeciesName) %>% arrange(SpeciesName)
-
-# Cleaning non-fish species and species ID's ----------------------------------------------------
-#Using join to keep correct names of species in UVC data
-#We do not need all columns in the UVC data set, dropping columns that are not needed
-UVC <- UVC %>% select(-c(Time, Diver, Current, Temperature_unit, Thermocline_depth, 
-                         Temperature_over_thermocline, Temperature_below_thermocline, Visibility_over_thermocline,
-                         Visibility_over_thermocline, Visibility_below_thermocline, Species, Comments, 
-                         Dive_duration, Census_duration, Distance_unit, Sex, Total, Depth)) %>%
-  rename(Transect_length_m = Transect_length) %>%
+#Tidying up UVC data
+UVC <- UVC %>% mutate(SpeciesName = 
+                        recode(Species, "bonito" = "Sarda orientalis", 
+                               #The bonito in Ecuador refers to Sarda orientalis
+                               "Paralabrax albomaclatus" = "Paralabrax albomaculatus",
+                               "yellow tail snapper" = "Lutjanus argentiventris",
+                               "Zalophus wolebacki" = "Zalophus wollebaeki",
+                               "Hoplopagrus guenteri" = "Hoplopagrus guentherii",
+                               "Zalophus wollebackii" = "Zalophus wollebaeki",
+                               "Zalophus wollebacki" = "Zalophus wollebaeki",
+                               "Heterodonthus quoyi" = "Heterodontus quoyi",
+                               "Myvteroperca olfax" = "Mycteroperca olfax")) %>% 
+  #Dropping columns we do not need
+  select(-c(Time, Diver, Current, Temperature_unit, Thermocline_depth, 
+            Temperature_over_thermocline, Temperature_below_thermocline, Visibility_over_thermocline,
+            Visibility_over_thermocline, Visibility_below_thermocline, Species, Comments, 
+            Dive_duration, Census_duration, Distance_unit, Sex, Total, Depth)) %>%
+  rename(Transect_length_m = Transect_length) %>% #renaming to indicate that length is in meters
+  #Joining to keep correct names of species in UVC data from FishDB
   left_join(FishDB %>% select(ScientificName, ValidName, Family, Genus, a, b, 
                               LengthType, LenLenRatio),
-            by = c("SpeciesName" = "ScientificName")) 
-#Instead of UVC clean, should it just stay as UVC, to minimize the amount of variables?
+            by = c("SpeciesName" = "ScientificName")) %>% 
+  #Decide what to do for Decapterus sanctahelenae, e.g. should the name be changed?
+  #Now that corrections for D. sanctahelenae have been made
+  #Remove any non-fish species
+  filter(!ValidName %in% NonFish)
+#Remove SpeciesName column when D. santaehelenae is sorted out
+# %>% select(-SpeciesName)
 
-#Prior to removing the SpeciesName column, we should check for NA values in the 
-#ScientificName column. This way we can identify the species that are not included in our
-#FishDB
-#First, let's extract the rows with NA values under ValidName, but keeping all columns
+#Extracting rows with NA values under ValidName, but keeoing all columns
+#to identify if there are any species not included in our FishDB
 UVC_clean %>% filter(is.na(ValidName), .preserve = T) %>% 
   #Now let's extract the unique values of SpeciesNames for which we do not have a valid name
-  distinct(SpeciesName)
-#Updated FishDB so we now have Decapterus sanctaehelenae (now known as D. punctatus) 
+  distinct(SpeciesName) #FishDB was updated with Decapterus sanctahelenae (now knoen as D. punctatus)
 #Check this ID, because it is not recorded in the Pacific, only the Atlantic. According to the STRI website, 
 #there are only three species of Decapterus: D. macarellus, D. macrosoma, and D. muroadsi. 
 #Talk to Pelayo about this.
 
-#Now that corrections have been made, remove any non-fish species
-UVC_clean <- UVC_clean %>% 
-  #We keep only observations for which SpeciesNames is not included in the NonFish vector
-  filter(!ValidName %in% NonFish) 
-  #Remove SpeciesName column when D. santaehelenae is sorted out
-  # %>% select(-SpeciesName)
 
+#Correct site names in UVC - so that site names are similar in DOVS and UVC
+#Make sure the species are correct - e.g. from species list
+#Maybe delete individuals smaller than 30 cm
+#Make column with area of each site in square meters, width always 5 m
 
-# Biomass calculations ----------------------------------------------------
+# Biomass calculations DOVS ----------------------------------------------------
 #Quality Control
 #Prior to calculating biomass we need our DOVS measurements to meet two requirements
 #1. RMS <= 20
@@ -356,32 +369,21 @@ Biomass_DOVS_mat <- Biomass_DOVS %>%
 
 any(is.na(Biomass_DOVS_mat)) #Now there is no NA's because the individuals with sp now have biomass value
 
-# NA's are introduced, because when there is no species ID e.g. Balistidae sp, there are sometimes
-#also no length measurement. Should I delete rows with NA's in the abundance columns?
-# SFH added later: I have looked through the data from DOVS again, and the reason for missing biomass
-# is that there are no a and b values, not missing length. 
-
-#DFA answers: You need to check with Pelayo what was done with individuals that were not
-#identified to species level. An idea may be to apply the mean biomass of that Genus/Family
-
-#Dropping rows with NA values and deleting duplicates #Is this the correct thing to do?
-
-#DFA answers: No, we need to check why we have NAs values to begin with, and try to find
-#ways to minimise the data we are losing.
-#DOVS_mat <- Biomass_DOVS_mat %>% drop_na() %>% 
-#  filter(!duplicated(.))
-
-#Delete the text above, when Pelayo and Denisse have approved the method for biomasses
-#for "sp" ID's
+#Is the above the correct way to get mean values for biomass for species identified to Family and Genus level?
+#I got mean for the sites where the "sp" ID's were from, and when there were no other species from the Family
+#or Genus at the site, I used the mean for that Genus (scarus) across all sites.
 
 #Making matrix
 DOVS_mat <- DOVS_mat %>% 
   pivot_wider(names_from = "ValidName", values_from = "Biomass_sp") %>% 
   column_to_rownames("SiteMet") %>%
   as.matrix() %>% 
-  replace_na(0)
+  replace_na(0) #Putting 0 instead of NA, when the species was not observed at the site.
 
 any(is.na(Biomass_DOVS_mat)) #no NA's
+
+
+# Biomass calculations UVC ---------------------------------------------
 
 
 #Calculating biomass for UVC
@@ -629,7 +631,8 @@ Abun_DOVS <- Abun_DOVS %>% select(-c(Site, Method))
 #Summing abundance of each species per site
 Abun_DOVS <- Abun_DOVS %>%
   group_by(SiteMet, SpeciesName) %>%
-  summarise(Abundance = sum(N, na.rm = T))
+  summarise(Abundance = sum(N, na.rm = T)) %>% 
+  ungroup()
 
 #Assigning columns with species names and abundance from UVC
 Abun_UVC <- subset (UVC, select = c("Site", "SpeciesName", "N", "Method"))
@@ -639,7 +642,8 @@ Abun_UVC <- Abun_UVC %>% select(-c(Site, Method))
 #Summing abundance of each species per site
 Abun_UVC <- Abun_UVC %>%
   group_by(SiteMet, SpeciesName) %>%
-  summarise(Abundance = sum(N, na.rm = T))
+  summarise(Abundance = sum(N, na.rm = T)) %>% 
+  ungroup()
 
 #Combining DOVS and UVC data
 Abun <- rbind(Abun_DOVS, Abun_UVC)
