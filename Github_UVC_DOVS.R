@@ -21,10 +21,10 @@ library(vegan)
 
 # Uploading data ----------------------------------------------------------
 #Loading UVC and DOVS data
-UVC <- read.csv(file = "Data/UVC_all_clean.csv", header = TRUE,
+UVC <- read.csv(file = "Data/UVC.csv", header = TRUE,
                 stringsAsFactors = FALSE) %>% select(-X)
 
-DOVS_FullDB <- read.csv(file = "Data/DOVS_clean.csv", header = TRUE, 
+DOVS_FullDB <- read.csv(file = "Data/DOVS.csv", header = TRUE, 
                  stringsAsFactors = FALSE) %>% select(-X)
 
 #Checking if the two methods have the same number of sites
@@ -58,8 +58,6 @@ DOVS <- DOVS_FullDB %>%
   filter(Family != "" & Period != "") %>% 
   #Removing rows with no length information - DFA
   drop_na(Length_mm) %>% 
-  #Rename Number_individuals column
-  rename("N" = "Number_individuals") %>% 
   #Removing spaces in Genus column
   mutate(Genus = str_trim(Genus, side = "both"),
          #I also want the empty Species rows to now include sp
@@ -81,6 +79,7 @@ DOVS <- DOVS_FullDB %>%
                                  SpeciesName == "Holacanthus sp" ~ "Holacanthus passer",
                                  SpeciesName == "Sufflamen sp" ~ "Sufflamen verres",
                                  SpeciesName == "Uraspis sp" ~ "Uraspis helvola",
+                                 SpeciesName == "Aetobatus sp" ~ "Aetobatus narinari",
                                  TRUE ~ SpeciesName)) %>% 
   #Using join to keep correct names of species in DOVS data
   left_join(FishDB %>% select(ScientificName, ValidName, a, b, LengthType, LenLenRatio),
@@ -88,19 +87,19 @@ DOVS <- DOVS_FullDB %>%
   #Now we remove non fish species
   filter(!ValidName %in% NonFish) %>% 
   select(-c(SpeciesName)) %>% 
-#We are now going to standarise site names across both methods. I have only included sites
+#We are now going to standardise site names across both methods. I have only included sites
 #that are duplicated in both datasets available in the GitHub repo. Go through them and 
 #edit if necessary. The column site name is the site with no spaces and sitecode is a 
 #shorten version of the site name and island that can be used in graphs - DFA
   select(-Island) %>% 
   #Using inner join so only site names that appear in both dataframes are kept - DFA
   inner_join(SiteKeys %>% select(-UVC), by = c("Site"="DOVS")) %>% 
-  #Remove the column Site so only the standarised names remain
+  #Remove the column Site so only the standardised names remain
   select(-Site) %>% 
   #Remove any accents in the names of sites and islands
   mutate(SiteName = stringi::stri_trans_general(SiteName, "Latin-ASCII"),
          Island = stringi::stri_trans_general(Island, "Latin-ASCII"))
-  
+
 
 #Note that once the data has been cleaned, most of the rows with multiple individuals have
 #disappeared. So I am going to go back to the raw data and show you how we can deal with
@@ -112,8 +111,6 @@ MultiLength <- DOVS_FullDB %>%
   filter(Family != "" & Period != "") %>% 
   #Removing rows with no length information - DFA
   drop_na(Length_mm) %>% 
-  #Rename Number_individuals column
-  rename("N" = "Number_individuals") %>% 
   #Keep rows with more than one individual
   filter(N > 1) %>% 
   #Remove any instances where the precision is > 10% of length
@@ -241,10 +238,11 @@ UVC %>% distinct(SpeciesName) %>% arrange(SpeciesName)
 # Cleaning non-fish species and species ID's ----------------------------------------------------
 #Using join to keep correct names of species in UVC data
 #We do not need all columns in the UVC data set, dropping columns that are not needed
-UVC_clean <- UVC %>% select(-c(Time, Diver, Current, Temperature, Thermocline_depth, 
-                  Water_temp_over_therm, Water_temp_below_therm, Vis_over_therm,
-                  Vis_below_therm, SPECIES, Comments, Habitat_type_RSM, Rugosity_0_3,
-                  Inclination_0_3, Rocky_reef_max_depth)) %>%
+UVC <- UVC %>% select(-c(Time, Diver, Current, Temperature_unit, Thermocline_depth, 
+                         Temperature_over_thermocline, Temperature_below_thermocline, Visibility_over_thermocline,
+                         Visibility_over_thermocline, Visibility_below_thermocline, Species, Comments, 
+                         Dive_duration, Census_duration, Distance_unit, Sex, Total, Depth)) %>%
+  rename(Transect_length_m = Transect_length) %>%
   left_join(FishDB %>% select(ScientificName, ValidName, Family, Genus, a, b, 
                               LengthType, LenLenRatio),
             by = c("SpeciesName" = "ScientificName")) 
@@ -283,22 +281,6 @@ DOVS <- DOVS %>% filter(RMS_mm <= 20) %>%
   rename("Length_cm"="Length_mm") %>% 
   #We will drop columns we do not need
   select(-c(Precision_mm, RMS_mm, Range_mm))
-  
-#We need to ask a few questions before continuing with our calculations:
-#1. Is this point data or MaxN data? This is important because we have a stage column and
-#if this is a MaxN then we will need to figure out if N is related to MaxN per species or
-#MaxN per stage per species
-#2. What do we do with data points with no periods attached to it?
-
-DOVS %>% group_by(Period) %>% tally() #There are 289 length measurements that are not in any period.
-#Is this not a quite large amount of data to remove? 7
-#I think we need to keep the data, since we do not use the periods for anything, but the lengths are 
-#for a certain species for a certain site, which is why I think we should keep it.
-
-
-#The following code assumes that this is point data and that we need to remove any rows
-#with no period
-DOVS %>% filter(!Period == "")
 
 #Calculate the biomass for DOVS using FishDB a and b values for FL
 str(DOVS) #LenLenRatio is character and needs to be numeric
@@ -310,13 +292,57 @@ Biomass_DOVS <- DOVS %>% select(Site, Length_cm, N, Method, ValidName, a, b,
   #The equation is therefore: a*((LenLenRatio*Length_cm)^b)
   mutate(Biomass_N = a*((LenLenRatio*Length_cm)^b))
 
-#For rows with missing length, use mean for species at site
-#DFA answers: From memory, Pelayo said we will use the mean length for that species on that
-#site. I am sure this is in a previous email, check with Pelayo. # It was said at a meeting - 
-# when there is no measurement, use mean for site.
+#Calculating mean biomass for each family at each site
+mean_bio_family <- Biomass_DOVS %>% 
+  filter(!endsWith(ValidName, " sp")) %>% #removing rows only identified to genus or family level
+  group_by(Site, Family) %>% 
+  mutate(mean_bio_family = mean(Biomass_N)) %>% #calculating mean biomass for each family at each site
+  summarise(mean_bio_family) %>% 
+  distinct() %>% 
+  ungroup(Site, Family)
+#Finding the mean biomass for the family balistidae at site Arrecife Antiguo
+#as this is where we have the two individuals identified as "Balistidae sp"
+mean_bio_family[17,] # 1138.24431
 
-#SFH response: There are actually no entries that have NA in length, but some have NA in the N (abundance)
-#column, which is why we get NAs in the biomass. 
+#Calculating mean biomass for each genus at each site
+mean_bio_genus <- Biomass_DOVS %>% 
+  filter(!endsWith(ValidName, " sp")) %>% #removing rows only identified to genus or family level
+  group_by(Family, Genus) %>% 
+  mutate(mean_all_sites = mean(Biomass_N)) %>% #3 sites do not have any scarus except "Scarus sp", 
+  #therefore I calculate a value for mean biomass of each genus based on all sites
+  group_by(Site, Family, Genus) %>% 
+  mutate(mean_bio_genus = mean(Biomass_N)) %>% #calculating mean biomass for each genus at each site
+  select(-c(Length_cm, N, Species, ValidName, a, b, LengthType, LenLenRatio)) %>% 
+  distinct() %>% 
+  ungroup(Site, Family, Genus)
+mean_bio_genus[71,] # 4732.50971, Lutjanus sp in Cabo Marshall
+mean_bio_genus[152,] # 313.61883, Lutjanus sp in Isabella Esta 8
+mean_bio_genus %>% filter(Genus == "Scarus")
+
+Biomass_DOVS <- Biomass_DOVS %>% 
+  mutate(Biomass_N = case_when(ValidName == "Balistidae sp" & Site == "Arrecife Antiguo" ~ 1138.24431,
+                               ValidName == "Lutjanus sp" & Site == "Cabo Marshall" ~ 4732.50971,
+                               ValidName == "Lutjanus sp" & Site == "Isabela Este 8" ~ 313.61883, 
+                               ValidName == "Scarus sp" & Site == "Caleta Iguana" ~ 852.0596,
+                               ValidName == "Scarus sp" & Site == "Isabela Alcedo" ~ 1126.2327,
+                               ValidName == "Scarus sp" & Site == "Isabela Este 6" ~ 1064.1793,
+                               ValidName == "Scarus sp" & Site == "Isla Lobos" ~ 2223.2636,
+                               ValidName == "Scarus sp" & Site == "León Dormido" ~ 2488.1143,
+                               ValidName == "Scarus sp" & Site == "Marchena Norte" ~ 968.8443,
+                               ValidName == "Scarus sp" & Site == "Punta Albemarle" ~ 3432.8070,
+                               ValidName == "Scarus sp" & Site == "Punta Espejo" ~ 1955.1796, 
+                               ValidName == "Scarus sp" & Site == "Punta Pitt" ~ 1820.0815,
+                               ValidName == "Scarus sp" & Site == "Roca Unión" ~ 1315.8535,
+                               ValidName == "Scarus sp" & Site == "Seymour Norte" ~ 863.7705,
+                               ValidName == "Scarus sp" & Site == "Al Arco (Cleaning Station)" ~ 1593.466,
+                               ValidName == "Scarus sp" & Site == "Isabela Sur" ~ 1593.466,
+                               ValidName == "Scarus sp" & Site == "Tagus Norte" ~ 1593.466,
+                               TRUE ~ Biomass_N)) %>% 
+  filter(!str_detect(ValidName, "Gerreidae sp"))
+
+#Remove mean_bio_family and mean_bio_genus, as they are no longer needed
+rm(mean_bio_family)
+rm(mean_bio_genus)
 
 #summing biomass for each species in Biomass_sp
 Biomass_DOVS <- Biomass_DOVS %>% 
@@ -328,7 +354,7 @@ Biomass_DOVS <- Biomass_DOVS %>%
 Biomass_DOVS_mat <- Biomass_DOVS %>% 
   unite(SiteMet, Site, Method, sep = " ")
 
-any(is.na(Biomass_DOVS_mat))
+any(is.na(Biomass_DOVS_mat)) #Now there is no NA's because the individuals with sp now have biomass value
 
 # NA's are introduced, because when there is no species ID e.g. Balistidae sp, there are sometimes
 #also no length measurement. Should I delete rows with NA's in the abundance columns?
@@ -342,8 +368,11 @@ any(is.na(Biomass_DOVS_mat))
 
 #DFA answers: No, we need to check why we have NAs values to begin with, and try to find
 #ways to minimise the data we are losing.
-DOVS_mat <- Biomass_DOVS_mat %>% drop_na() %>% 
-  filter(!duplicated(.))
+#DOVS_mat <- Biomass_DOVS_mat %>% drop_na() %>% 
+#  filter(!duplicated(.))
+
+#Delete the text above, when Pelayo and Denisse have approved the method for biomasses
+#for "sp" ID's
 
 #Making matrix
 DOVS_mat <- DOVS_mat %>% 
@@ -352,9 +381,68 @@ DOVS_mat <- DOVS_mat %>%
   as.matrix() %>% 
   replace_na(0)
 
-any(is.na(DOVS_mat))
-DOVS_mat %>% head()
+any(is.na(Biomass_DOVS_mat)) #no NA's
 
+
+#Calculating biomass for UVC
+Biomass_UVC <- UVC %>% select(Site, Length_cm, N, Method, ValidName, a, b, 
+                              LengthType, TLRatio) %>% 
+  #The fish biomass equation is W = a*L^b, therefore first transform the length, 
+  #then apply the exponent b and finally multiply by a.
+  #The equation is therefore: a*((TLRatio*Length_cm)^b)
+  mutate(Biomass_N = a*((TLRatio*Length_cm)^b))
+
+#summing biomass for each species in the UVC data in Biomass_sp
+Biomass_UVC <- Biomass_UVC %>% distinct() %>% 
+  group_by(Site, Method, ValidName) %>% 
+  summarise(Biomass_sp = sum(Biomass_N)) %>% 
+  ungroup(Site, Method, ValidName)
+
+#Making matrix for UVC biomass data
+Biomass_UVC_mat <- Biomass_UVC %>% 
+  unite(SiteMet, Site, Method, sep = " ") %>% 
+  pivot_wider(names_from = "ValidName", values_from = "Biomass_sp") %>% 
+  column_to_rownames("SiteMet") %>% 
+  as.matrix() %>% 
+  replace_na(0)
+
+#Biomass both methods
+biomass <- rbind(Biomass_DOVS, Biomass_UVC) %>% 
+  unite(SiteMet, Site, Method, sep = " ")
+
+x <- biomass %>% 
+  pivot_wider(names_from = "ValidName", values_from = "Biomass_sp") %>% 
+  column_to_rownames("SiteMet") %>% 
+  as.matrix() %>% 
+  replace_na(0)
+
+#Producing qq-plot for biomass of DOVS, to see effect of transformation
+qqnorm(Biomass_DOVS$Biomass_sp^(1/4))
+qqline(Biomass_DOVS$Biomass_sp^(1/4), col = "red")
+qqnorm(Biomass_UVC$Biomass_sp^(1/4))
+qqline(Biomass_UVC$Biomass_sp^(1/4), col = "red")
+
+#Applying a 4th root transformation to matrix
+x <- x^(1/4)
+#Calculating dissimilarity distance using vegan package, the default is Bray Curtis
+y <- vegdist(x, method = "bray")
+#Create a PCoA (Principal Co-ordinates Analysis) plot
+z <- wcmdscale(y, eig = T)
+#Show plot
+plot(z, type = "points") #Add type points to remove labels
+
+#binding PCO coordinates to dataframe
+pco1 <- as.data.frame(z$points[,1:2])
+pco1 <- setDT(pco1, keep.rownames = TRUE)[]
+pco1 <- pco1 %>% rename(Sites = rn, PC1 = Dim1, PC2 = Dim2)
+pco2 <- pco1 %>% mutate(Method = case_when(endsWith(Sites, "DOVS") ~ "DOVS",
+                                           endsWith(Sites, "UVC") ~ "UVC"))
+#plotting PCO with methods
+ggplot(pco2, aes(PC1, PC2, col = Method, fill = Method)) + 
+  stat_ellipse(geom = "polygon", col = "black", alpha = 0.5) + 
+  geom_point(shape = 21, col = "black") +
+  theme_bw() + 
+  theme(panel.grid = element_blank())
 
 #DFA comments: Before we are able to make any comparisons in biomass results, we need to
 #ensure biomass was measured within a given area. If we do not consider the area, and we
@@ -432,54 +520,6 @@ ggplot(pco2, aes(PC1, PC2, col = Method, fill = Method)) +
 
 #Now I only need to calculate the biomass for the UVC data, so that I can add these to the plot
 
-# Species Richness calculation --------------------------------------------
-
-#Species richness can be calculated with vegan::specnumber() on the density matrix
-#While vegan::diversity() will allow you to calculate diversity indices
-
-#Species richness for DOVS sites
-DOVS_richness <- DOVS %>% 
-  select(Site, Method, ValidName) %>% 
-  distinct() %>% 
-  group_by(Site, Method) %>% 
-  summarise(richness = n()) %>% 
-  ungroup(Site, Method)
-
-#Species richness for UVC sites
-UVC_richness <- UVC_clean %>% 
-  select(Site, Method, ValidName) %>% 
-  distinct() %>% 
-  group_by(Site, Method) %>% 
-  summarise(richness = n()) %>% 
-  ungroup(Site, Method)
-
-
-
-
-#######################################
-
-# OLD PCO and dissimilarity calculations
-
-#Applying a 4th root transformation to matrix
-x <- DOVS_mat^(1/4)
-#Calculating dissimilarity distance using vegan package, the default is Bray Curtis
-y <- vegdist(x, method = "bray")
-#Create a PCoA (Principal Co-ordinates Analysis) plot
-z <- wcmdscale(y, eig = T)
-#Show plot
-plot(z)
-
-
-
-############# Data from FishDB, how many do I actually need to change ##########
-#DFA answers: Check the dataset, how many species are calculated using TL, how many are not?
-#Just get the info for the species you need.
-
-#Shows the length type data we have for each of the UVC species
-a <- UVC_clean %>% select(ValidName, LengthType) %>% distinct()
-
-################################################################################
-
 
 # Species Richness calculation --------------------------------------------
 
@@ -541,6 +581,38 @@ ggplot(a, aes(PC1, PC2, col = Method, fill = Method)) +
   geom_point(shape = 21, col = "black") +
   theme_bw() + 
   theme(panel.grid = element_blank())
+
+# Notes --------------------------------------------
+
+#Species richness can be calculated with vegan::specnumber() on the density matrix
+#While vegan::diversity() will allow you to calculate diversity indices
+
+#Species richness for DOVS sites
+DOVS_richness <- DOVS %>% 
+  select(Site, Method, ValidName) %>% 
+  distinct() %>% 
+  group_by(Site, Method) %>% 
+  summarise(richness = n()) %>% 
+  ungroup(Site, Method)
+
+#Species richness for UVC sites
+UVC_richness <- UVC_clean %>% 
+  select(Site, Method, ValidName) %>% 
+  distinct() %>% 
+  group_by(Site, Method) %>% 
+  summarise(richness = n()) %>% 
+  ungroup(Site, Method)
+
+# OLD PCO and dissimilarity calculations
+
+#Applying a 4th root transformation to matrix
+x <- DOVS_mat^(1/4)
+#Calculating dissimilarity distance using vegan package, the default is Bray Curtis
+y <- vegdist(x, method = "bray")
+#Create a PCoA (Principal Co-ordinates Analysis) plot
+z <- wcmdscale(y, eig = T)
+#Show plot
+plot(z)
 
 
 # NMDS plot for sites and species ------------------------------------------
@@ -612,3 +684,6 @@ sp_UVC <- UVC_clean %>% select(SpeciesName, ValidName, a, b, LengthType, LenLenR
   distinct()
 
 write_excel_csv2(sp_UVC, "sp_UVC.csv")
+
+
+
