@@ -44,25 +44,22 @@ MapGMR
 
 # Sites sampled -----------------------------------------------------------
 #Reading data from the sites
-Sites <- read.csv2("Data/Bacalao_MagicMysteryTour_GPS_Coordinates_Respaldo.csv") %>% 
-  select(Site, Island, Bioregion, LAT, LONG, Type, Fishing, Zoning) %>% 
+Sites <- openxlsx::read.xlsx("Data/Bacalao_MagicMysteryTour_GPS_Coordinates_Respaldo.xlsx") %>% 
   #I am tidying up the names so they do not look too messy
-  janitor::clean_names()
+  janitor::clean_names() %>% 
+  select(site, island, bioregion, lat, long, type, fishing, zoning) 
 #My microsoft package has been updated, so now it uses comma (,) instead of a dot (.)
 #That's why I am using read.csv2.
 str(Sites)
 
-#First, we need to change the lat and long columns from factors to characters - DFA
-Sites <- Sites %>% mutate(lat = as.character(lat), 
-                 long = as.character(long),
-                 #I am also correcting that typo under the column 'type' from turism to tourism
-                 #We need to convert the column from factor to character
-                 type = as.character(type),
-                 #Then we correct the mistake
-                 type = case_when(type == "Turism" ~ "Tourism",
-                                   TRUE ~ type),
-                 #Finally we change the column back to factor
-                 type = factor(type))
+#Correcting that typo under the column 'type' from turism to tourism - DFA
+Sites <- Sites %>% 
+  #We need to convert the column from factor to character
+  mutate(type = as.character(type),
+         #Then we correct the mistake
+         type = case_when(type == "Turism" ~ "Tourism", TRUE ~ type),
+         #Finally we change the column back to factor
+         type = factor(type))
 
 #We will call a library called parzer (I mentioned this in a previous email, check emails for more information) - DFA
 library(parzer)
@@ -71,6 +68,8 @@ library(parzer)
 Sites <- Sites %>% mutate(latDD = parse_lat(lat),
                  lonDD = parse_lon(long))
 #You can check coords have been converted correctly using this website: https://www.pgc.umn.edu/apps/convert/
+#Saving corrected Sites file
+# write.csv(Sites, "Data/GPScoords_BacalaoMMT_Corrected.csv", row.names = F)
 
 #If you want to show these points on the map we previously created, we first need to create a shapefile - DFA
 SiteShp <- Sites %>% 

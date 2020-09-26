@@ -12,6 +12,13 @@ library(tidyverse)
 library(data.table)
 library(vegan)
 
+#DFA comments
+#Ideally you want just one dataset that includes all info you need to do the analysis
+#We have too many datasets and lots of information which is irrelevant to this project
+#Be organised from the beginning or you will have too many variables and it makes the
+#code harder to follow, while the info that you do not use is occupying space in memory
+#and slowing down computer performance for no reason. Merge files when possible and delete
+#anything that you do not need
 
 # Uploading data ----------------------------------------------------------
 #Loading UVC and DOVS data
@@ -32,20 +39,36 @@ NonFish <- c("Eretmochelys imbricata", "Chelonia mydas", "Zalophus wollebaeki",
              "Scyllarides astori", "Spheniscus mendiculus", "Arctocephalus galapagoensis",
              "Lepidochelys olivacea")
 
-
 #Access to the Fish data set with correct names and a/b variables to calculate biomass
 FishDB <- read_csv("https://raw.githubusercontent.com/lidefi87/MangroveProject_CDF/master/Data/FishDB.csv")
 
 #Loading site keys - Spreadsheet matching site names in both methods - DFA
 SiteKeys <- openxlsx::read.xlsx("Data/SiteKeys.xlsx") #This is how you load things from Excel
 
-#Loading data for sites open or closed to fishing
-Status <- openxlsx::read.xlsx("Data/Bacalao_MagicMysteryTour_GPS_Coordinates_Respaldo.xlsx") %>% 
-  select(-c(X9, X10))
+#Loading data for sites open or closed to fishing - This is the unclean data with the
+#coordinates in the wrong format and spelling mistakes. The clean data should have been 
+#saved from the previous time it was fixed. Otherwise, you become very inefficient as you
+#are repeating the same process over and over and the idea with coding is to avoid this
+# Status <- openxlsx::read.xlsx("Data/Bacalao_MagicMysteryTour_GPS_Coordinates_Respaldo.xlsx") %>% 
+  # select(-c(X9, X10))
+
+#This file contains the clean data, which I have saved as a csv file - DFA
+Status <- read.csv("Data/GPScoords_BacalaoMMT_Corrected.csv")
+#We could merge it with the Site Keys as follows - DFA
+Test <- Status %>% left_join(SiteKeys, by = c("site"="DOVS"))
+#This way we have all information in just one place and can delete any other variables
+#Note that only the matching sites I found are included here. Once you update the list, it
+#should cover most of the sites
 
 #Loading data for site length
-Site_length <- openxlsx::read.xlsx("Data/Periods & Transect Lengths_Bacalao Magic mystery tour_2014.xlsx")
-#Time and date is read wrong
+Site_length <- openxlsx::read.xlsx("Data/Periods & Transect Lengths_Bacalao Magic mystery tour_2014.xlsx",
+                                   detectDates = T) %>% 
+  mutate(Time = chron::times(as.numeric(Time)))
+#Time and date is read wrong - We need to tell R that we want it to detect dates. Fixed - DFA
+#Excel spreadsheet was edited because the date was written in two different formats and it
+#was causing problems when reading these values
+#If you encounter these sort of problems, check your raw data for clues - DFA
+#Time was changed using the chron library - DFA
 
 
 # Tidying up DOVS data -----------------------------------------------------
@@ -230,7 +253,8 @@ corrDOVS <- DOVS_FullDB %>%
   #Remove any instances where the precision is > 10% of length
   filter(Precision_mm < Length_mm*0.1) %>% 
   bind_rows(MLcorr)
-
+#Removing variables we no longer need
+rm(MLcorr, x)
 
 # Tidying up UVC data -----------------------------------------------------
 
@@ -295,10 +319,13 @@ DOVS <- DOVS %>% filter(RMS_mm <= 20) %>%
   #We will drop columns we do not need
   select(-c(Precision_mm, RMS_mm, Range_mm))
 
+#DFA comments - I do not understand what you are trying to achieve in this section. You
+#are making calculations and deleting them? What is the purpose of that? Variables are
+#not even saved.
+
 #Calculate the biomass for DOVS using FishDB a and b values for FL
 str(DOVS) #LenLenRatio is character and needs to be numeric
-Biomass_DOVS <- DOVS %>% select(Site, Length_cm, N, Method, ValidName, a, b, 
-                                LengthType, LenLenRatio) %>%
+Biomass_DOVS <- DOVS %>% 
   mutate(LenLenRatio = as.numeric(LenLenRatio)) %>% 
   #The fish biomass equation is W = a*L^b, therefore first transform the length, 
   #then apply the exponent b and finally multiply by a.
@@ -308,14 +335,17 @@ Biomass_DOVS <- DOVS %>% select(Site, Length_cm, N, Method, ValidName, a, b,
 #Calculating mean biomass for each family at each site
 mean_bio_family <- Biomass_DOVS %>% 
   filter(!endsWith(ValidName, " sp")) %>% #removing rows only identified to genus or family level
-  group_by(Site, Family) %>% 
-  mutate(mean_bio_family = mean(Biomass_N)) %>% #calculating mean biomass for each family at each site
-  summarise(mean_bio_family) %>% 
-  distinct() %>% 
-  ungroup(Site, Family)
+  group_by(SiteName, Family) %>% 
+  #calculating mean biomass for each family at each site
+  summarise(mean_bio_family = mean(Biomass_N))
+#REMEMBER!!!!!!! Do NOT use mutate to perform calculations based on groups, such as this one
+#Instead use summarise(). Mutate is only good if you do a line by line calculation.
+#Fix the code below based on example above.
+
 #Finding the mean biomass for the family balistidae at site Arrecife Antiguo
 #as this is where we have the two individuals identified as "Balistidae sp"
 mean_bio_family[17,] # 1138.24431
+#DFA responds: I do not understand what you mean
 
 #Calculating mean biomass for each genus at each site
 mean_bio_genus <- Biomass_DOVS %>% 
@@ -332,6 +362,9 @@ mean_bio_genus[71,] # 4732.50971, Lutjanus sp in Cabo Marshall
 mean_bio_genus[152,] # 313.61883, Lutjanus sp in Isabella Esta 8
 mean_bio_genus %>% filter(Genus == "Scarus")
 
+
+#What is this for? It really does not make sense to me. Why would you change biomass values 
+#manually? - DFA
 Biomass_DOVS <- Biomass_DOVS %>% 
   mutate(Biomass_N = case_when(ValidName == "Balistidae sp" & Site == "Arrecife Antiguo" ~ 1138.24431,
                                ValidName == "Lutjanus sp" & Site == "Cabo Marshall" ~ 4732.50971,
