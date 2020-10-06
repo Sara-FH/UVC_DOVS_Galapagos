@@ -69,7 +69,7 @@ Sites <- Sites %>% mutate(latDD = parse_lat(lat),
                  lonDD = parse_lon(long))
 #You can check coords have been converted correctly using this website: https://www.pgc.umn.edu/apps/convert/
 #Saving corrected Sites file
-# write.csv(Sites, "Data/GPScoords_BacalaoMMT_Corrected.csv", row.names = F)
+#write.csv(Sites, "Data/GPScoords_BacalaoMMT_Corrected.csv", row.names = F)
 
 #If you want to show these points on the map we previously created, we first need to create a shapefile - DFA
 SiteShp <- Sites %>% 
