@@ -12,6 +12,7 @@ library(tidyverse)
 library(data.table)
 library(vegan)
 library(chron)
+library(xlsx)
 library(ggplot2)
 
 #DFA comments
@@ -143,7 +144,7 @@ SiteLength <- SiteLength %>% mutate(Site =
                                              "Bahía Gardner norte" =  "Bahía Gardner Norte", 
                                              "Daphne menor" = "Daphne Menor",
                                              "Isabela Sur " = "Isabela Sur",
-                                             "Luz de día" = "Luz de Día",))
+                                             "Luz de día" = "Luz de Día"))
 #Checking that the sites are the same
 unique(SiteLength$Site[!(SiteLength$Site %in% SiteInfo$Site)]) #Sites are the same
 
@@ -426,8 +427,6 @@ DOVS <- DOVS %>% filter(ValidName %in% SpeciesUVC)
 
 # Richness & Density boxplots ----------------------------------------------------
 
-library(ggplot2)
-
 #Calculating species richness in DOVS
 DOVS_richness <- DOVS %>% 
   select(Site, Period, N, Method, ValidName, Fishing, SiteCode, Transect_length_m) %>% 
@@ -530,8 +529,9 @@ Biomass_DOVS <- DOVS %>%
 #Sum biomass of each species per site in tons per hectare
 Biomass_DOVS <- Biomass_DOVS %>% 
   group_by(Site, ValidName) %>% 
-  summarise(Tons_hec = sum(T_hec), Method = Method, Fishing = Fishing) %>% 
-  distinct()
+  summarise(Tons_hec_sp = sum(T_hec), Method = Method, Fishing = Fishing) %>% 
+  distinct() %>% 
+  ungroup()
 #These calculations can be deleted/changed when decision has been made for the periods.
 
 
@@ -569,68 +569,46 @@ Biomass_UVC <- UVC %>%
 #Sum biomass of each species per site in tons per hectare
 Biomass_UVC <- Biomass_UVC %>% 
   group_by(Site, ValidName) %>% 
-  summarise(Tons_hec = sum(T_hec), Method = Method, Fishing = Fishing) %>% 
-  distinct()
+  summarise(Tons_hec_sp = sum(T_hec), Method = Method, Fishing = Fishing) %>% 
+  distinct() %>% 
+  ungroup()
 #These calculations can be deleted/changed when decision has been made for the periods.
 
 
-# Boxplot biomass ---------------------------------------------------------
-
-Biomass <- rbind(Biomass_DOVS, Biomass_UVC)
-
-#Remove unnecessary variables
-rm(Biomass_UVC, Biomass_DOVS)
-
-#plot species richness
-ggplot(Biomass, aes(x = Fishing, y = Tons_hec, fill = Method)) +
-  geom_boxplot() + 
-  scale_x_discrete(name = "Zonation") +
-  scale_y_continuous(name = "Tons"~hectare^-1) +
-  theme_classic()
-
-#Plotting without the two outliers
-test <- Biomass %>% filter(!(Site == "Al Arco (Cleaning Station)"), 
-                           !(Site == "Arrecife Antiguo"))
-
-ggplot(test, aes(x = Fishing, y = Tons_hec, fill = Method)) +
-  geom_boxplot() + 
-  scale_x_discrete(name = "Zonation") +
-  scale_y_continuous(name = "Tons"~hectare^-1) +
-  theme_classic()
-rm(test)
-
-
 # NMDS plot for biomass --------------------------------------
+
+#Making biomass data frame for matrix
+Biomass <- rbind(Biomass_DOVS, Biomass_UVC)
 
 #Making matrix for dissimilarity calculation DOVS and UVC
 Bio_mat <- Biomass %>% 
   select(-Fishing) %>% 
   unite(SiteMet, Site, Method, sep = " ") %>% 
-  pivot_wider(names_from = "ValidName", values_from = "Tons_hec") %>% #Making the format right for the matrix
+  pivot_wider(names_from = "ValidName", values_from = "Tons_hec_sp") %>% #Making the format right for the matrix
   column_to_rownames("SiteMet") %>% #Making a column into row names for the matrix
   as.matrix() %>% 
   replace_na(0)#Putting 0 instead of NA, when the species was not observed at the site.
 
 #Checking QQplot for biomass of both methods
-qqnorm(Biomass$Tons_hec^(1/4))
-qqline(Biomass$Tons_hec^(1/4), col = "red")
+qqnorm(Biomass$Tons_hec_sp^(1/4))
+qqline(Biomass$Tons_hec_sp^(1/4), col = "red")
 
 #Applying a 4th root transformation to matrix
 Bio_mat <- Bio_mat^(1/4)
 #Calculating dissimilarity distance using vegan package, the default is Bray Curtis
 Bio_mat <- vegdist(Bio_mat, method = "bray")
 #Create a PCoA (Principal Co-ordinates Analysis) plot
-Bio_mat <- wcmdscale(Bio_mat, eig = T)
+Bio_mat_pco <- wcmdscale(Bio_mat, eig = T) #resturns matrix of scores scaled by eigenvalues
 #Show plot
-plot(Bio_mat, type = "points") #Add type points to remove labels
+plot(Bio_mat_pco, type = "points") #Add type points to remove labels
 
 #binding PCO coordinates to dataframe
-PCO_biomass <- as.data.frame(Bio_mat$points[,1:2])
+PCO_biomass <- as.data.frame(Bio_mat_pco$points[,1:2])
 PCO_biomass <- setDT(PCO_biomass, keep.rownames = TRUE)[]
 PCO_biomass <- PCO_biomass %>% 
   rename(Sites = rn, PC1 = Dim1, PC2 = Dim2) %>% 
   mutate(Method = case_when(endsWith(Sites, "DOVS") ~ "DOVS",
-                            endsWith(Sites, "UVC") ~ "UVC"))
+                            endsWith(Sites, "UVC") ~ "UVC")) #Getting methods from site name
 #plotting PCO with methods
 ggplot(PCO_biomass, aes(PC1, PC2, col = Method, fill = Method)) + 
   stat_ellipse(geom = "polygon", col = "black", alpha = 0.5) + 
@@ -639,13 +617,81 @@ ggplot(PCO_biomass, aes(PC1, PC2, col = Method, fill = Method)) +
   theme(panel.grid = element_blank())
 
 #Remove unnecessary variables
-rm(Bio_mat)
+rm(Bio_mat_pco)
 
+# Boxplot biomass ---------------------------------------------------------
 
+#Summing biomass across species to get a ton per hectare for each site, to compare methods
+Biomass <- Biomass %>% 
+  group_by(Site, Method) %>% 
+  mutate(Tons_hec_all = sum(Tons_hec_sp)) %>% 
+  ungroup() %>% 
+  select(-c(ValidName, Tons_hec_sp)) %>% #Removing species and tons per hectare of individual species
+  distinct()
 
-# Permanova ---------------------------------------------------------------
+#Remove unnecessary variables
+rm(Biomass_UVC, Biomass_DOVS)
 
+#plot species richness
+ggplot(Biomass, aes(x = Fishing, y = Tons_hec_all, fill = Method)) +
+  geom_boxplot() + 
+  scale_x_discrete(name = "Zonation") +
+  scale_y_continuous(name = "Tons"~hectare^-1) +
+  theme_classic()
 
+#Plotting without the ouliers
+test <- Biomass %>% filter(!(Tons_hec_all > 100))
+
+ggplot(test, aes(x = Fishing, y = Tons_hec_all, fill = Method)) +
+  geom_boxplot() + 
+  scale_x_discrete(name = "Zonation") +
+  scale_y_continuous(name = "Tons"~hectare^-1) +
+  theme_classic()
+rm(test)
+
+# PERMANOVA ---------------------------------------------------------------
+
+#PERMANOVA
+
+#Distance matrix from biomass data
+Dist_mat <- as.matrix(Bio_mat)
+
+#Making richness and density across sites ##This might be what I should actually have done for boxplots
+temp1 <- Richness %>% 
+  select(Site, Period, Method, Richness_area) %>% 
+  group_by(Site, Method) %>% 
+  mutate(Richness_site = sum(Richness_area)) %>% 
+  ungroup() %>% 
+  select(-c(Period, Richness_area)) %>% 
+  distinct()
+
+temp2 <- Density %>% 
+  select(Site, Period, Method, Abundance_area) %>% 
+  group_by(Site, Method) %>% 
+  mutate(Density_site = sum(Abundance_area)) %>% 
+  ungroup() %>% 
+  select(-c(Period, Abundance_area)) %>% 
+  distinct()
+
+#Data frame for permanova Factors to be tested
+Factors <- Biomass %>% 
+  right_join(temp1, by = c("Site", "Method")) %>% 
+  left_join(temp2, by = c("Site", "Method"))
+
+#Remove temp1 and 2
+rm(temp1, temp2)
+
+#PERMANOVA fishing
+adonis(Dist_mat ~ Fishing/Method, data = Factors, permutations = 10000)
+#PERMANOVA biomass
+adonis(Dist_mat ~ Tons_hec_all/Method, data = Factors, permutations = 10000)
+#PERMANOVA biomass
+adonis(Dist_mat ~ Richness_site/Method, data = Factors, permutations = 10000)
+#PERMANOVA biomass
+adonis(Dist_mat ~ Density_site/Method, data = Factors, permutations = 10000)
+
+#remove variables
+rm(Dist_mat, Factors)
 
 
 

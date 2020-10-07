@@ -61,10 +61,6 @@ UVC1 <- read.xlsx2("Data/UVC_Carnivoros_Bacalao MAgic Mystery Tour_ 2014_1st tri
   #go under the column SizeClass and their values will go under the column N.
   pivot_longer(cols = c(24:46), names_to = "SizeClass", values_to = "N") %>%
   transform(N = as.numeric(N)) %>%
-  group_by(Site, Species, SizeClass) %>% 
-  mutate(N = sum(N, na.rm = TRUE)) %>% 
-  #summing total number of species per size class at each site
-  ungroup(Site, Species, SizeClass) %>% 
   mutate(Trip = paste("1")) #Adding line with the trip number
 
 UVC2 <- read.xlsx2("Data/UVC_Carnivoros_Bacalao MAgic Mystery Tour_ 2014_2nd trip_FINAL.xlsx", 
@@ -124,10 +120,6 @@ UVC2 <- read.xlsx2("Data/UVC_Carnivoros_Bacalao MAgic Mystery Tour_ 2014_2nd tri
   #go under the column SizeClass and their values will go under the column N.
   pivot_longer(cols = c(28:50), names_to = "SizeClass", values_to = "N") %>%
   transform(N = as.numeric(N)) %>%
-  group_by(Site, Species, SizeClass) %>% 
-  #summing total number of species per size class at each site
-  mutate(N = sum(N, na.rm = TRUE)) %>% 
-  ungroup(Site, Species, SizeClass) %>% 
   mutate(Trip = paste("2")) #Adding line with the trip number
 
 UVC3 <- read.xlsx2("Data/UVC_Carnivoros_Bacalao MAgic Mystery Tour_ 2014_3rd trip_FINAL.xlsx", 
@@ -187,10 +179,6 @@ UVC3 <- read.xlsx2("Data/UVC_Carnivoros_Bacalao MAgic Mystery Tour_ 2014_3rd tri
   #go under the column SizeClass and their values will go under the column N.
   pivot_longer(cols = c(28:50), names_to = "SizeClass", values_to = "N") %>%
   transform(N = as.numeric(N)) %>%
-  group_by(Site, Species, SizeClass) %>% 
-  #summing total number of species per size class at each site
-  mutate(N = sum(N, na.rm = TRUE)) %>% 
-  ungroup(Site, Species, SizeClass) %>% 
   mutate(Trip = paste("3")) #Adding line with the trip number
 
 UVC4 <- read.xlsx2("Data/UVC_Carnivoros_Bacalao MAgic Mystery Tour_ 2014_4thtrip_FINAL.xlsx", 
@@ -250,10 +238,6 @@ UVC4 <- read.xlsx2("Data/UVC_Carnivoros_Bacalao MAgic Mystery Tour_ 2014_4thtrip
   #go under the column SizeClass and their values will go under the column N.
   pivot_longer(cols = c(28:50), names_to = "SizeClass", values_to = "N") %>%
   transform(N = as.numeric(N)) %>%
-  group_by(Site, Species, SizeClass) %>%  
-  #summing total number of species per size class at each site
-  mutate(N = sum(N, na.rm = TRUE)) %>% 
-  ungroup(Site, Species, SizeClass) %>% 
   mutate(Trip = paste("4")) #Adding line with the trip number
 
 UVC5 <- read.xlsx2("Data/DB Transectos visuales Agosto 2014 DW.xlsx", 
@@ -289,10 +273,6 @@ UVC5 <- read.xlsx2("Data/DB Transectos visuales Agosto 2014 DW.xlsx",
   #go under the column SizeClass and their values will go under the column N.
   pivot_longer(cols = c(24:46), names_to = "SizeClass", values_to = "N") %>%
   transform(N = as.numeric(N)) %>%
-  group_by(Site, Species, SizeClass) %>%  
-  #summing total number of species per size class at each site
-  mutate(N = sum(N, na.rm = TRUE)) %>% 
-  ungroup(Site, Species, SizeClass) %>% 
   mutate(Trip = paste("5")) #Adding line with the trip number
 
 #Renaming the two Fondeadero sites in UVC data to contain Island as well
@@ -300,16 +280,6 @@ UVC4 <- UVC4 %>% mutate(Site =
                        recode(Site, "Fondeadero" = "Santa Fe Fondeadero"))
 UVC5 <- UVC5 %>% mutate(Site = 
                           recode(Site, "Fondeadero" = "Wolf Fondeadero"))
-
-
-Status <- Status %>% mutate(Site = 
-                              recode(Site, 
-                                     "Bahía Gardner norte" =  "Bahía Gardner Norte", 
-                                     "Isabela Sur " = "Isabela Sur", 
-                                     "Daphne menor" = "Daphne Menor", 
-                                     "Luz de día" = "Luz de Día",
-                                     "Punta Vicente Roca (No DOVS)" = "Punta Vicente Roca"))
-
 
 #Removing columns with Thermocline, visibility, Total and Comment from UVC1, UVC2, UVC3 and UVC4
 #As these are not in UVC5 
@@ -335,7 +305,9 @@ UVC5 <- UVC5 %>% select(-c("Habitat_type", "Rugosity", "Inclination", "Rocky_ree
 
 #combining UVC1-5 in one data frame
 UVC <- rbind(UVC1, UVC2, UVC3, UVC4, UVC5) %>% 
-  mutate(Method = "UVC")
+  mutate(Method = "UVC") %>% 
+  mutate(N = case_when(is.na(N) ~ 0, 
+                       TRUE ~ N))
 
 #Making csv file of UVC data to be used for data analysis
 write.csv(UVC, "Data/UVC.csv")
