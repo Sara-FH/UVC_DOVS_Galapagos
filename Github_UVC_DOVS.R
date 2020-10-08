@@ -3,8 +3,8 @@
 # Author: Sara Færch Hansen
 # Assisting: Denisse Fierro Arcos
 # Version: 1
-# Date last updated: 2020-09-24
-# Aim: Compare UVC and DOVS data in the Galapagos related to the Master thesis of Sara Færch Hansen
+# Date last updated: 2020-10-08
+# Aim: Compare UVC and DOVS data in the Galapagos related to the Master of Science of Sara Færch Hansen
 ###################################################################################################################
 
 # Uploading libraries -----------------------------------------------------
@@ -431,17 +431,23 @@ DOVS <- DOVS %>% filter(ValidName %in% SpeciesUVC)
 DOVS_richness <- DOVS %>% 
   select(Site, Period, N, Method, ValidName, Fishing, SiteCode, Transect_length_m) %>% 
   mutate(Site_area = Transect_length_m*5) %>% #Each site is 5m wide, calculating area in square meters
-  group_by(Site, Period) %>% 
-  mutate(Richness = length(unique(ValidName))) %>% #Richness of species per site, per period (replicate)
-  mutate(Richness_area = Richness/(Site_area/100)) #Richness per 100 square meters
+  #group_by(Site, Period) %>% 
+  #mutate(Richness = length(unique(ValidName))) %>% #Richness of species per site, per period (replicate)
+  #I am not sure whether I should calculate species richness per site per period or just per site...
+  group_by(Site) %>% 
+  mutate(Richness_site = length(unique(ValidName))) %>% 
+  mutate(Richness_area = Richness_site/(Site_area/100)) #Richness per 100 square meters
 
 #Calculating species richness in UVC
 UVC_richness <- UVC %>% 
   select(Site, Period, N, Method, ValidName, Fishing, SiteCode, Transect_length_m) %>%
   mutate(Site_area = Transect_length_m*5) %>% #Each site is 5m wide, calculating area in square meters
-  group_by(Site, Period) %>% 
-  mutate(Richness = length(unique(ValidName))) %>% #Richness of species per site, per period (replicate)
-  mutate(Richness_area = Richness/(Site_area/100)) #Richness per 100 square meters
+  #group_by(Site, Period) %>% 
+  #mutate(Richness = length(unique(ValidName))) %>% #Richness of species per site, per period (replicate)
+  #I am not sure whether I should calculate species richness per site per period or just per site...
+  group_by(Site) %>% 
+  mutate(Richness_site = length(unique(ValidName))) %>% 
+  mutate(Richness_area = Richness_site/(Site_area/100)) #Richness per 100 square meters
 
 Richness <- rbind(DOVS_richness, UVC_richness)
 
@@ -460,21 +466,27 @@ rm(DOVS_richness, UVC_richness)
 DOVS_density <- DOVS %>% 
   select(Site, Period, N, Method, ValidName, Fishing, SiteCode, Transect_length_m) %>% 
   mutate(Site_area = Transect_length_m*5) %>% #Each site is 5m wide, calculating area in square meters
-  group_by(Site, Period) %>% 
-  mutate(Abundance = sum(N)) %>% #Abundance of all species per site, per period (replicate)
-  mutate(Abundance_area = Abundance/(Site_area/100)) #Richness per 100 square meters
+  #group_by(Site, Period) %>% 
+  #mutate(Density = sum(N)) %>% #Density of all species per site, per period (replicate)
+  #I am not sure whether I should calculate density per site per period or just per site...
+  group_by(Site) %>% 
+  mutate(Density_site = sum(N)) %>% 
+  mutate(Density_area = Density_site/(Site_area/100)) #Density per 100 square meters
 
 UVC_density <- UVC %>% 
   select(Site, Period, N, Method, ValidName, Fishing, SiteCode, Transect_length_m) %>% 
   mutate(Site_area = Transect_length_m*5) %>% #Each site is 5m wide, calculating area in square meters
-  group_by(Site, Period) %>% 
-  mutate(Abundance = sum(N)) %>% #Abundance of all species per site, per period (replicate)
-  mutate(Abundance_area = Abundance/(Site_area/100)) #Richness per 100 square meters
+  #group_by(Site, Period) %>% 
+  #mutate(Density = sum(N)) %>% #Density of all species per site, per period (replicate)
+  #I am not sure whether I should calculate density per site per period or just per site...
+  group_by(Site) %>% 
+  mutate(Density_site = sum(N)) %>% 
+  mutate(Density_area = Density_site/(Site_area/100)) #Density per 100 square meters
 
 Density <- rbind(DOVS_density, UVC_density)
 
-#plot species abundance
-ggplot(Density, aes(x = Fishing, y = Abundance_area, fill = Method)) +
+#plot species density
+ggplot(Density, aes(x = Fishing, y = Density_area, fill = Method)) +
   geom_boxplot() + 
   scale_x_discrete(name = "Zonation") +
   scale_y_continuous(name = "Number of individuals/100"~m^2) +
@@ -529,7 +541,7 @@ Biomass_DOVS <- DOVS %>%
 #Sum biomass of each species per site in tons per hectare
 Biomass_DOVS <- Biomass_DOVS %>% 
   group_by(Site, ValidName) %>% 
-  summarise(Tons_hec_sp = sum(T_hec), Method = Method, Fishing = Fishing) %>% 
+  summarise(Tons_hec_sp = sum(T_hec), Method = Method, Fishing = Fishing) %>% #Tons pr. species pr. hectare
   distinct() %>% 
   ungroup()
 #These calculations can be deleted/changed when decision has been made for the periods.
@@ -563,19 +575,18 @@ Biomass_UVC <- UVC %>%
   #Tons (1000 kg, 10^6 gram) of each species per hectare (10.000 m^2), note biomass_sp is in gram.
   mutate(T_hec = (Biomass_sp/(10^6))/(Transect_area/(10^4))) %>% 
   distinct()
-
 #Correct this after decision about periods
 
 #Sum biomass of each species per site in tons per hectare
 Biomass_UVC <- Biomass_UVC %>% 
   group_by(Site, ValidName) %>% 
-  summarise(Tons_hec_sp = sum(T_hec), Method = Method, Fishing = Fishing) %>% 
+  summarise(Tons_hec_sp = sum(T_hec), Method = Method, Fishing = Fishing) %>% #Tons pr. species pr. hectare
   distinct() %>% 
   ungroup()
 #These calculations can be deleted/changed when decision has been made for the periods.
 
 
-# NMDS plot for biomass --------------------------------------
+# PCO plot for biomass --------------------------------------
 
 #Making biomass data frame for matrix
 Biomass <- rbind(Biomass_DOVS, Biomass_UVC)
@@ -590,26 +601,31 @@ Bio_mat <- Biomass %>%
   replace_na(0)#Putting 0 instead of NA, when the species was not observed at the site.
 
 #Checking QQplot for biomass of both methods
-qqnorm(Biomass$Tons_hec_sp^(1/4))
-qqline(Biomass$Tons_hec_sp^(1/4), col = "red")
+qqnorm(sqrt(sqrt(Biomass$Tons_hec_sp)))
+qqline(sqrt(sqrt(Biomass$Tons_hec_sp)), col = "red")
 
 #Applying a 4th root transformation to matrix
-Bio_mat <- Bio_mat^(1/4)
+Bio_mat <- sqrt(sqrt(Bio_mat))
 #Calculating dissimilarity distance using vegan package, the default is Bray Curtis
-Bio_mat <- vegdist(Bio_mat, method = "bray")
+Bio_mat_dist <- vegdist(Bio_mat, method = "bray")
 #Create a PCoA (Principal Co-ordinates Analysis) plot
-Bio_mat_pco <- wcmdscale(Bio_mat, eig = T) #resturns matrix of scores scaled by eigenvalues
+Bio_mat_pco <- wcmdscale(Bio_mat, eig = T) #returns matrix of scores scaled by eigenvalues
 #Show plot
 plot(Bio_mat_pco, type = "points") #Add type points to remove labels
+
 
 #binding PCO coordinates to dataframe
 PCO_biomass <- as.data.frame(Bio_mat_pco$points[,1:2])
 PCO_biomass <- setDT(PCO_biomass, keep.rownames = TRUE)[]
 PCO_biomass <- PCO_biomass %>% 
-  rename(Sites = rn, PC1 = Dim1, PC2 = Dim2) %>% 
-  mutate(Method = case_when(endsWith(Sites, "DOVS") ~ "DOVS",
-                            endsWith(Sites, "UVC") ~ "UVC")) #Getting methods from site name
-#plotting PCO with methods
+  rename(Site = rn, PC1 = Dim1, PC2 = Dim2) %>% 
+  mutate(Method = case_when(endsWith(Site, "DOVS") ~ "DOVS",
+                            endsWith(Site, "UVC") ~ "UVC")) %>% #Getting methods from site name
+  mutate(Site = str_remove_all(Site, " DOVS| UVC")) %>% #Removing DOVS and UVC from site names
+  left_join(Biomass %>% select(Site, Method, Fishing) %>% unique(), 
+            by = c("Site", "Method"))
+
+#plotting PCO with methods based on dissimilarity from biomass
 ggplot(PCO_biomass, aes(PC1, PC2, col = Method, fill = Method)) + 
   stat_ellipse(geom = "polygon", col = "black", alpha = 0.5) + 
   geom_point(shape = 21, col = "black") +
@@ -617,7 +633,66 @@ ggplot(PCO_biomass, aes(PC1, PC2, col = Method, fill = Method)) +
   theme(panel.grid = element_blank())
 
 #Remove unnecessary variables
-rm(Bio_mat_pco)
+rm(Bio_mat_pco, PCO_biomass)
+
+# PCO plot using factoextra -----------------------------------------------
+library(factoextra)
+
+#I have not given this part good names yet, because it is not yet working as I want it to - SFH
+
+#Making pcoa plot with factoextra
+my.pca <- prcomp(Bio_mat, center = TRUE, scale = TRUE) #Making PCOA from biomass matrix
+fviz_eig(my.pca)
+
+#data frame with variables of method and fishing for the sites
+x <- Biomass %>% 
+  select(-c(ValidName, Tons_hec_sp)) %>% 
+  distinct() %>% 
+  unite(SiteMet, Site, Method, sep = " ") %>% 
+  mutate(Method = case_when(endsWith(SiteMet, "DOVS") ~ "DOVS",
+                            endsWith(SiteMet, "UVC") ~ "UVC"))
+
+method <- as.factor(x$Method) #methods for plotting in pcoa plot
+status <- as.factor(x$Fishing) #This one I have not been able to plot in the pcoa plot
+#Pcoa plot
+#closest plot to what I want, but I cannot find a way to add the status of open or closed to fishing
+fviz_pca_biplot(my.pca, repel = TRUE,
+                col.var = "black", # Variables color
+                palette = c("#00AFBB",  "#FC4E07"),
+                col.ind = method, # Individuals color
+                geom.ind = "point")
+
+#plot showing what species are contributing more
+fviz_pca_biplot(my.pca,
+                # individuals
+                geom.ind = "point",
+                fill.ind = method, col.ind = "black",
+                pointshape = 21, pointsize = 2,
+                # variables
+                col.var = "contrib",
+                gradient.cols = "RdYlBu",
+                legend.title = list(fill = "Species",
+                                    color = "Contrib",
+                                    alpha = "Contrib")) +
+  scale_color_gradient2(low = "lightgrey", mid = "grey", high = "black", midpoint = 4)
+
+#other scale
+#scale_color_gradient2(low = "blue", mid = "steelblue", high = "red", midpoint = 4)
+
+
+#trying in ggplot2 and factoextra
+basic_plot <- fviz_pca_ind(my.pca, label="none")
+
+ggplot(cbind(basic_plot$data,x[,c("Fishing","Method")]),
+       aes(x=x,y=y,col=Fishing,shape=Method)) + 
+  geom_point() + 
+  theme_bw()
+#this plot differentiates between method and fishing, but I cannot add the arrows showing what species determine
+#the difference between the sites - which are in a normal PCO plot
+
+rm(basic_plot, my.pca, x, method, status)
+
+
 
 # Boxplot biomass ---------------------------------------------------------
 
@@ -651,8 +726,6 @@ rm(test)
 
 # PERMANOVA ---------------------------------------------------------------
 
-#PERMANOVA
-
 #Distance matrix from biomass data
 Dist_mat <- as.matrix(Bio_mat)
 
@@ -666,11 +739,11 @@ temp1 <- Richness %>%
   distinct()
 
 temp2 <- Density %>% 
-  select(Site, Period, Method, Abundance_area) %>% 
+  select(Site, Period, Method, Density_area) %>% 
   group_by(Site, Method) %>% 
-  mutate(Density_site = sum(Abundance_area)) %>% 
+  mutate(Density_site = sum(Density_area)) %>% 
   ungroup() %>% 
-  select(-c(Period, Abundance_area)) %>% 
+  select(-c(Period, Density_area)) %>% 
   distinct()
 
 #Data frame for permanova Factors to be tested
@@ -685,6 +758,9 @@ rm(temp1, temp2)
 adonis(Dist_mat ~ Fishing/Method, data = Factors, permutations = 10000)
 #PERMANOVA biomass
 adonis(Dist_mat ~ Tons_hec_all/Method, data = Factors, permutations = 10000)
+
+
+#Do these two below need their own distance matrices?
 #PERMANOVA biomass
 adonis(Dist_mat ~ Richness_site/Method, data = Factors, permutations = 10000)
 #PERMANOVA biomass
