@@ -14,6 +14,7 @@ library(vegan)
 library(chron)
 library(xlsx)
 library(ggplot2)
+library(ape) #For principal coordinates analysis
 
 #DFA comments
 #Ideally you want just one dataset that includes all info you need to do the analysis
@@ -573,8 +574,8 @@ ggplot(test, aes(x = Fishing, y = N_site_hectare, fill = Method)) +
 rm(test)
 
 #Deleting variables that are no longer needed
-rm(DOVS_density, UVC_density, EmptyPeriods_DOVS, EmptyPeriods_UVC)
-
+rm(DOVS_density, UVC_density)
+#using EmptyPeriods data frames for UVC and DOVS for alternative biomass calculations
 
 # Biomass calculations DOVS ----------------------------------------------------
 #Quality Control
@@ -601,7 +602,7 @@ Biomass_DOVS <- DOVS %>%
   #The equation is therefore: a*((LenLenRatio*Length_cm)^b)
   mutate(Biomass_N = a*((LenLenRatio*Length_cm)^b)) %>% #Biomass for the number of individuals of each species
   group_by(Site, Period, ValidName) %>% 
-  #Summing biomass for each species in each period, so I have total biomass per species per site
+  #Summing biomass for each species in each period, so I have total biomass per species per period
   summarise(Biomass_sp_period = sum(Biomass_N), 
             Transect_length_m, Method, Fishing, SiteCode) %>% 
   unique() %>% 
@@ -655,6 +656,113 @@ Biomass_UVC <- UVC %>%
   group_by(Site) %>% 
   mutate(Biomass_site = sum(Biomass_site_sp)) #sum of biomass per site in tons per hectare
 
+# ALTERNATIVE Biomass calculations DOVS ----------------------------------------------------
+#Quality Control
+#Prior to calculating biomass we need our DOVS measurements to meet two requirements
+#1. RMS <= 20
+#2. Precision <= 10% estimated Length 
+#point 2 has already been done in Cleaning multiple individuals with one measurement
+DOVS <- DOVS %>% filter(RMS_mm <= 50) %>% #Because of blurry video RMS is higher than 20, no RMS was higher than 50
+  #We also need to change the units of the lengths from mm to cm prior to biomass calculation
+  mutate(Length_mm = Length_mm/10) %>% 
+  #Now we rename the column to avoid confusion
+  rename("Length_cm"="Length_mm") %>% 
+  #We will drop columns we do not need
+  select(-c(Precision_mm, RMS_mm, Range_mm))
+
+#Preparing the EmptyPeriods data frames for DOVS
+EmptyPeriods_DOVS <- EmptyPeriods_DOVS %>% 
+  rename(Biomass_N = N) #Making biomass column with 0 biomass, as there are no biomass in empty periods
+
+#Calculating biomass DOVS
+Biomass_DOVS <- DOVS %>%
+  mutate(LenLenRatio = as.numeric(LenLenRatio)) %>% 
+  #The fish biomass equation is W = a*L^b, therefore first transform the length, 
+  #then apply the exponent b and finally multiply by a.
+  #The equation is therefore: a*((LenLenRatio*Length_cm)^b)
+  mutate(Biomass_N = a*((LenLenRatio*Length_cm)^b)) %>% #Biomass for the number of individuals of each species
+  select(Site, Period, Method, ValidName, Fishing, SiteCode, Transect_length_m, Biomass_N) %>% 
+  rbind(EmptyPeriods_DOVS) %>% #Binding the periods with no fish in them
+  mutate(Transect_area = Transect_length_m*5) %>% #Calculating transect area using transect width 5m
+  group_by(Site, Period) %>% 
+  #Biomass of all species per period per site AND Calculating tons per hectare as gram/m2 divided by 100
+  summarise(Tons_hectare_period = (sum(Biomass_N)/Transect_area)/100,
+            Method, Fishing, SiteCode, Transect_area) %>% #In tons per hectare
+  unique() %>% 
+  group_by(Site) %>% 
+  summarise(Tons_hectare_site = mean(Tons_hectare_period), #Calculating average biomass of periods as site biomass
+            Method, Fishing, SiteCode) %>% 
+  unique()
+
+
+# ALTERNATIVE Biomass calculations UVC ---------------------------------------------
+#Loading total length ratio for FishDB data
+TLRatio <- read.xlsx2("Data/TLRatio.xlsx",
+                      sheetName = 1, header = TRUE, stringsAsFactors = FALSE) %>% 
+  mutate(TLRatio = as.numeric(TLRatio))
+str(TLRatio) #TLRation is numeric
+
+#Adding TLRatio to UVC data
+UVC <- UVC %>% 
+  left_join(TLRatio %>% select(ValidName, TLRatio), by = c("ValidName")) %>% 
+  select(-LenLenRatio)
+#Removing TLRation
+rm(TLRatio)
+
+#Preparing the EmptyPeriods data frames for UVC
+EmptyPeriods_UVC <- EmptyPeriods_UVC %>% 
+  rename(Biomass_N = N) #Making biomass column with 0 biomass, as there are no biomass in empty periods
+
+#Calculating biomass UVC
+Biomass_UVC <- UVC %>%
+  #The fish biomass equation is W = a*L^b, therefore first transform the length, 
+  #then apply the exponent b and finally multiply by a.
+  #The equation is therefore: a*((LenLenRatio*Length_cm)^b)
+  mutate(Biomass_N = a*((TLRatio*Length_cm)^b)) %>% #Biomass for the number of individuals of each species
+  select(Site, Period, Method, ValidName, Fishing, SiteCode, Transect_length_m, Biomass_N) %>% 
+  rbind(EmptyPeriods_UVC) %>% #Binding the periods with no fish in them
+  mutate(Transect_area = Transect_length_m*5) %>% #Calculating transect area using transect width 5m
+  group_by(Site, Period) %>% 
+  #Biomass of all species per period per site AND Calculating tons per hectare as gram/m2 divided by 100
+  summarise(Tons_hectare_period = (sum(Biomass_N)/Transect_area)/100,
+            Method, Fishing, SiteCode, Transect_area) %>% #In tons per hectare
+  unique() %>% 
+  group_by(Site) %>% 
+  summarise(Tons_hectare_site = mean(Tons_hectare_period), #Calculating average biomass of periods as site biomass
+            Method, Fishing, SiteCode) %>% 
+  unique()
+
+
+# ALTERNATIVE Biomass boxplot ---------------------------------------------------------
+
+#Removing EmptyPeriods data frames, as they are no longer needed
+rm(EmptyPeriods_DOVS, EmptyPeriods_UVC)
+
+#Combining biomass data for DOVS and UVC
+Biomass <- rbind(Biomass_DOVS, Biomass_UVC)
+
+
+#plot biomass in tons per hectare
+ggplot(Biomass, aes(x = Fishing, y = Tons_hectare_site, fill = Method)) +
+  geom_boxplot() + 
+  scale_x_discrete(name = "Zonation") +
+  scale_y_continuous(name = "Tons"~hectare^-1) +
+  theme_classic()
+
+#plotting biomass without outlier
+test <- Biomass %>% 
+  filter(!(Tons_hectare_site > 10))
+
+#plot biomass in tons per hectare
+ggplot(test, aes(x = Fishing, y = Tons_hectare_site, fill = Method)) +
+  geom_boxplot() + 
+  scale_x_discrete(name = "Zonation") +
+  scale_y_continuous(name = "Tons"~hectare^-1) +
+  theme_classic()
+rm(test)
+
+#Deleting variables that are no longer needed
+rm(Biomass_DOVS, Biomass_UVC)
 # Biomass boxplot ---------------------------------------------------------
 
 #Combining biomass data for DOVS and UVC
@@ -709,7 +817,6 @@ Bio_mat_pco <- wcmdscale(Bio_mat_dist, eig = TRUE) #returns matrix of scores sca
 plot(Bio_mat_pco, type = "points") #Add type points to remove labels
 
 # Principal coordinate analysis and simple ordination plot
-library(ape)
 Bio_mat_pcoa <- pcoa(Bio_mat_dist)
 #Biplot with arrows
 biplot(Bio_mat_pcoa, Bio_mat)
@@ -852,7 +959,6 @@ Den_mat_pco <- wcmdscale(Den_mat_dist, eig = TRUE) #returns matrix of scores sca
 plot(Den_mat_pco, type = "points") #Add type points to remove labels
 
 # Principal coordinate analysis and simple ordination plot
-library(ape)
 Den_mat_pcoa <- pcoa(Den_mat_dist)
 #Biplot with arrows
 biplot(Den_mat_pcoa, Den_mat)
@@ -932,24 +1038,7 @@ adonis(Dist_mat ~ Method/Fishing + Method/Site_sp_hectare + Site_sp_hectare/Fish
 
 
 #Removing unnecessary variables
-rm(dispersion, Dist_mat, Factors)
-
-
-
-
-# Notes 1 -----------------------------------------------------------------
-
-
-
-#Do these two below need their own distance matrices?
-#PERMANOVA biomass
-adonis(Dist_mat ~ Richness_site/Method, data = Factors, permutations = 10000)
-#PERMANOVA biomass
-adonis(Dist_mat ~ Density_site/Method, data = Factors, permutations = 10000)
-
-#remove variables
-rm(Dist_mat)
-
+rm(dispersion, Dist_mat, Den_mat_dist, Factors)
 
 
 # Notes --------------------------------------------
@@ -957,45 +1046,5 @@ rm(Dist_mat)
 #Species richness can be calculated with vegan::specnumber() on the density matrix
 #While vegan::diversity() will allow you to calculate diversity indices
 
-#Species richness for DOVS sites
-DOVS_richness <- DOVS %>% 
-  select(Site, Method, ValidName) %>% 
-  distinct() %>% 
-  group_by(Site, Method) %>% 
-  summarise(richness = n()) %>% 
-  ungroup(Site, Method)
 
-#Species richness for UVC sites
-UVC_richness <- UVC_clean %>% 
-  select(Site, Method, ValidName) %>% 
-  distinct() %>% 
-  group_by(Site, Method) %>% 
-  summarise(richness = n()) %>% 
-  ungroup(Site, Method)
-
-
-#DFA comments: Before we are able to make any comparisons in biomass results, we need to
-#ensure biomass was measured within a given area. If we do not consider the area, and we
-#happen to sample a longer transect in UVCs than in DOVS, we will get a difference simply
-#because our data was obtained for a different total area, and not necessarily because
-#there is an actual difference between methods.
-
-#In regards to your code, there is no need to create so many intermediate variables. This
-#is when the tidyverse becomes handy. You can do whatever calculations or manipulation you
-#need and just save the end result you are after. There is no point in making temporary
-#variables if you will delete them later. It is often confusing to have intermediate 
-#variables and also use up your memory. Avoid whenever possible.
-
-#Name your variables something useful. Having variables named x, y, z is not advisable
-#unless they are temporary only.
-
-#Make sure you comment your code. This is really handy not only for you when you come back
-#to check it after months of not working on this project, but also for other people who 
-#may want to use it. Plus, it is always better to have nicely commented code on your 
-#portfolio.
-
-#Finally, check your output. I cannot stress this enough. You need to know if what you are
-#trying to do with your code is what you actually get. The biomass calculation for example,
-#results were less than 1 gram for sharks of over 2 m. If results do not make sense, then 
-#you know a mistake has been made and a correction is needed.
 
