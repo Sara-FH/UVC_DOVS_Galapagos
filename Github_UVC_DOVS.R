@@ -8,7 +8,7 @@
 ###################################################################################################################
 
 # Uploading libraries -----------------------------------------------------
-library(tidyverse) 
+library(tidyverse)
 library(data.table)
 library(vegan)
 library(chron)
@@ -159,7 +159,6 @@ SiteInfo <- SiteInfo %>% left_join(SiteLength, by = "Site") %>%
          !Site == "Punta Calle 2", 
          !Site == "Punta Vicente Roca", 
          !Site == "Santiago Suroeste")
-
 
 #Removing excess variables
 rm(SiteKeys, Status, SiteLength)
@@ -425,90 +424,165 @@ unique(DOVS$Family[!(DOVS$Family %in% UVC$Family)]) #can be deleted after decisi
 DOVS <- DOVS %>% filter(ValidName %in% SpeciesUVC)
 
 
-# Richness & Density boxplots ----------------------------------------------------
+# Species richness boxplot ------------------------------------------------
+
+#Sites in SiteInfo, that do not have clean data in DOVS and UVC
+unique(SiteInfo$Site[!SiteInfo$Site %in% DOVS$Site])
+unique(SiteInfo$Site[!SiteInfo$Site %in% UVC$Site])
+#Different sites have dissapeared from the DOVS and UVC data after the cleaning process. 
+#Should these sites then be deleted?
+
+#Making data frame for empty periods (no species) in DOVS data
+EmptyPeriods_DOVS <- SiteInfo %>% 
+  select(Site, Period, SiteCode, Transect_length_m, Fishing) %>% 
+  mutate(SiteInfo_period = paste(Site, Period, sep = " ")) %>% 
+  distinct() %>% 
+  left_join(DOVS %>% 
+              select(Site, Period) %>% 
+              mutate(DOVS_period = paste(Site, Period, sep = " ")) %>% 
+              distinct(), 
+            by = c("Site", "Period")) %>% 
+  filter(!DOVS_period %in% SiteInfo_period) %>% #Filter the periods that are not in 
+  select(-c(SiteInfo_period, DOVS_period)) %>% 
+  mutate(N = 0) %>% #Adding empty abundance column
+  mutate(Method = paste("DOVS")) %>% #Adding method column
+  mutate(ValidName = NA) #Adding empty species column
 
 #Calculating species richness in DOVS
 DOVS_richness <- DOVS %>% 
   select(Site, Period, N, Method, ValidName, Fishing, SiteCode, Transect_length_m) %>% 
-  mutate(Site_area = Transect_length_m*5) %>% #Each site is 5m wide, calculating area in square meters
-  #group_by(Site, Period) %>% 
-  #mutate(Richness = length(unique(ValidName))) %>% #Richness of species per site, per period (replicate)
-  #I am not sure whether I should calculate species richness per site per period or just per site...
+  rbind(EmptyPeriods_DOVS) %>% #Binding rows with no fish in them
+  group_by(Site, Period) %>% 
+  mutate(Richness_period = length(unique(na.omit(ValidName)))) %>% #richness per period/transect
+  mutate(Transect_area = Transect_length_m*5) %>% #Area of each period/transect
+  mutate(Sp_hectare = Richness_period/(Transect_area/(10^4))) %>% #Species/hectare
+  group_by(Site, Period, ValidName) %>% 
+  summarise(N = sum(N), #Adding up the abundances to get better overview of data frame
+            Method, Fishing, SiteCode, Transect_length_m, 
+            Richness_period, Transect_area, Sp_hectare) %>% 
+  unique() %>% 
   group_by(Site) %>% 
-  mutate(Richness_site = length(unique(ValidName))) %>% 
-  mutate(Richness_area = Richness_site/(Site_area/100)) #Richness per 100 square meters
+  summarise(Site_sp_hectare = mean(Sp_hectare), #calculating mean species per hectare for each site
+            Method, Fishing, SiteCode) %>% 
+  ungroup() %>% 
+  unique()
+
+#Making data frame for empty periods (no species) in UVC data
+EmptyPeriods_UVC <- SiteInfo %>% 
+  select(Site, Period, SiteCode, Transect_length_m, Fishing) %>% 
+  mutate(SiteInfo_period = paste(Site, Period, sep = " ")) %>% 
+  distinct() %>% 
+  left_join(UVC %>% 
+              select(Site, Period) %>% 
+              mutate(UVC_period = paste(Site, Period, sep = " ")) %>% 
+              distinct(), 
+            by = c("Site", "Period")) %>% 
+  filter(!UVC_period %in% SiteInfo_period) %>% #Filter the periods that are not in 
+  select(-c(SiteInfo_period, UVC_period)) %>% 
+  mutate(N = 0) %>% #Adding empty abundance column
+  mutate(Method = paste("UVC")) %>% #Adding method column
+  mutate(ValidName = NA) #Adding empty species column
 
 #Calculating species richness in UVC
 UVC_richness <- UVC %>% 
-  select(Site, Period, N, Method, ValidName, Fishing, SiteCode, Transect_length_m) %>%
-  mutate(Site_area = Transect_length_m*5) %>% #Each site is 5m wide, calculating area in square meters
-  #group_by(Site, Period) %>% 
-  #mutate(Richness = length(unique(ValidName))) %>% #Richness of species per site, per period (replicate)
-  #I am not sure whether I should calculate species richness per site per period or just per site...
+  select(Site, Period, N, Method, ValidName, Fishing, SiteCode, Transect_length_m) %>% 
+  rbind(EmptyPeriods_UVC) %>% #Binding rows with no fish in them
+  group_by(Site, Period) %>% 
+  mutate(Richness_period = length(unique(na.omit(ValidName)))) %>% #richness per period/transect
+  mutate(Transect_area = Transect_length_m*5) %>% #Area of each period/transect
+  mutate(Sp_hectare = Richness_period/(Transect_area/(10^4))) %>% #Species/hectare
+  group_by(Site, Period, ValidName) %>% 
+  summarise(N = sum(N), #Adding up the abundances to get better overview of data frame
+            Method, Fishing, SiteCode, Transect_length_m, 
+            Richness_period, Transect_area, Sp_hectare) %>% 
+  unique() %>% 
   group_by(Site) %>% 
-  mutate(Richness_site = length(unique(ValidName))) %>% 
-  mutate(Richness_area = Richness_site/(Site_area/100)) #Richness per 100 square meters
+  summarise(Site_sp_hectare = mean(Sp_hectare), #calculating mean species per hectare for each site
+            Method, Fishing, SiteCode) %>% 
+  ungroup() %>% 
+  unique()
 
+#Combining richness for DOVS and UVC
 Richness <- rbind(DOVS_richness, UVC_richness)
 
 #plot species richness
-ggplot(Richness, aes(x = Fishing, y = Richness_area, fill = Method)) +
+ggplot(Richness, aes(x = Fishing, y = Site_sp_hectare, fill = Method)) +
   geom_boxplot() + 
   scale_x_discrete(name = "Zonation") +
-  scale_y_continuous(name = "Number of species/100"~m^2) +
+  scale_y_continuous(name = "Number of species"~h^-1) +
   theme_classic()
 
 #Deleting variables that are no longer needed
 rm(DOVS_richness, UVC_richness)
 
 
-#Calculating density in DOVS
+# Density boxplot ---------------------------------------------------------
+
+#Calculating density in DOVS for each site per hectare
 DOVS_density <- DOVS %>% 
   select(Site, Period, N, Method, ValidName, Fishing, SiteCode, Transect_length_m) %>% 
-  mutate(Site_area = Transect_length_m*5) %>% #Each site is 5m wide, calculating area in square meters
-  #group_by(Site, Period) %>% 
-  #mutate(Density = sum(N)) %>% #Density of all species per site, per period (replicate)
-  #I am not sure whether I should calculate density per site per period or just per site...
+  rbind(EmptyPeriods_DOVS) %>% #Binding rows with no fish in them
+  mutate(Transect_area = Transect_length_m*5) %>%  #calculating transect area by multiplying with width 5m
+  group_by(Site, Period) %>% 
+  summarise(N_period = sum(N), #Sum of abundance of species within each period
+            Method, Fishing, SiteCode, Transect_area) %>% 
+  unique() %>% 
+  mutate(N_hectare = N_period/(Transect_area/(10^4))) %>% #Number/hectare
   group_by(Site) %>% 
-  mutate(Density_site = sum(N)) %>% 
-  mutate(Density_area = Density_site/(Site_area/100)) #Density per 100 square meters
+  summarise(N_site_hectare = mean(N_hectare), 
+            Method, Fishing, SiteCode) %>% 
+  unique() %>% 
+  ungroup()
 
+#Calculating density in UVC for each site per hectare
 UVC_density <- UVC %>% 
   select(Site, Period, N, Method, ValidName, Fishing, SiteCode, Transect_length_m) %>% 
-  mutate(Site_area = Transect_length_m*5) %>% #Each site is 5m wide, calculating area in square meters
-  #group_by(Site, Period) %>% 
-  #mutate(Density = sum(N)) %>% #Density of all species per site, per period (replicate)
-  #I am not sure whether I should calculate density per site per period or just per site...
+  rbind(EmptyPeriods_UVC) %>% #Binding rows with no fish in them
+  mutate(Transect_area = Transect_length_m*5) %>%  #calculating transect area by multiplying with width 5m
+  group_by(Site, Period) %>% 
+  summarise(N_period = sum(N), #Sum of abundance of species within each period
+            Method = Method, Fishing = Fishing, SiteCode = SiteCode, Transect_area) %>% 
+  unique() %>% 
+  mutate(N_hectare = N_period/(Transect_area/(10^4))) %>% #Number/hectare
   group_by(Site) %>% 
-  mutate(Density_site = sum(N)) %>% 
-  mutate(Density_area = Density_site/(Site_area/100)) #Density per 100 square meters
+  summarise(N_site_hectare = mean(N_hectare), 
+            Method, Fishing, SiteCode) %>% 
+  unique() %>% 
+  ungroup()
 
+#Combining density for DOVS and UVC
 Density <- rbind(DOVS_density, UVC_density)
 
 #plot species density
-ggplot(Density, aes(x = Fishing, y = Density_area, fill = Method)) +
+ggplot(Density, aes(x = Fishing, y = N_site_hectare, fill = Method)) +
   geom_boxplot() + 
   scale_x_discrete(name = "Zonation") +
-  scale_y_continuous(name = "Number of individuals/100"~m^2) +
+  scale_y_continuous(name = "Number of individuals"~h^-1) +
   theme_classic()
 
+#plotting species density without outlier
+test <- Density %>% 
+  filter(!(N_site_hectare > 400))
+
+#plot
+ggplot(test, aes(x = Fishing, y = N_site_hectare, fill = Method)) +
+  geom_boxplot() + 
+  scale_x_discrete(name = "Zonation") +
+  scale_y_continuous(name = "Number of individuals"~h^-1) +
+  theme_classic()
+rm(test)
+
 #Deleting variables that are no longer needed
-rm(DOVS_density, UVC_density)
+rm(DOVS_density, UVC_density, EmptyPeriods_DOVS, EmptyPeriods_UVC)
 
 
 # Biomass calculations DOVS ----------------------------------------------------
-
-#General comment: Since we have already removed the measurements with too low a precision, 
-#and then done boxplots for richness and density - should I also have removed the measurements with
-#RMS above 20 earlier??
-
-
 #Quality Control
 #Prior to calculating biomass we need our DOVS measurements to meet two requirements
 #1. RMS <= 20
 #2. Precision <= 10% estimated Length 
 #point 2 has already been done in Cleaning multiple individuals with one measurement
-DOVS <- DOVS %>% filter(RMS_mm <= 20) %>% 
+DOVS <- DOVS %>% filter(RMS_mm <= 50) %>% #Because of blurry video RMS is higher than 20, no RMS was higher than 50
   #We also need to change the units of the lengths from mm to cm prior to biomass calculation
   mutate(Length_mm = Length_mm/10) %>% 
   #Now we rename the column to avoid confusion
@@ -516,35 +590,32 @@ DOVS <- DOVS %>% filter(RMS_mm <= 20) %>%
   #We will drop columns we do not need
   select(-c(Precision_mm, RMS_mm, Range_mm))
 
-#Calculate the biomass for DOVS using FishDB a and b values for FL
-str(DOVS) #LenLenRatio is character and needs to be numeric
+#For these calculations there is no need to make use of the empty periods, as averages are calculated 
+#per species, so empty periods are not affecting the average biomass per sp per site
+
+#Calculating biomass for DOVS
 Biomass_DOVS <- DOVS %>%
   mutate(LenLenRatio = as.numeric(LenLenRatio)) %>% 
   #The fish biomass equation is W = a*L^b, therefore first transform the length, 
   #then apply the exponent b and finally multiply by a.
   #The equation is therefore: a*((LenLenRatio*Length_cm)^b)
-  mutate(Biomass_N = a*((LenLenRatio*Length_cm)^b)) %>% 
-  group_by(Site, Period, Method, ValidName) %>% 
-  #Summing biomass for each species in Biomass_sp
-  summarise(Biomass_sp = sum(Biomass_N), Transect_length_m, Fishing) %>% 
-  ungroup() %>% 
-  mutate(Transect_area = Transect_length_m*5) %>% 
-  #Tons (1000 kg, 10^6 gram) of each species per hectare (10.000 m^2), note biomass_sp is in gram.
-  mutate(T_hec = (Biomass_sp/(10^6))/(Transect_area/(10^4))) %>% 
-  distinct()
-
-#What should I do with the periods?
-#They are replicates for each site, so do I take an average? 
-#or do I just sum all the biomasses per site? (and ignore periods?)
-#I will get very differen results because some sites have a lot more periods than others.
-
-#Sum biomass of each species per site in tons per hectare
-Biomass_DOVS <- Biomass_DOVS %>% 
+  mutate(Biomass_N = a*((LenLenRatio*Length_cm)^b)) %>% #Biomass for the number of individuals of each species
+  group_by(Site, Period, ValidName) %>% 
+  #Summing biomass for each species in each period, so I have total biomass per species per site
+  summarise(Biomass_sp_period = sum(Biomass_N), 
+            Transect_length_m, Method, Fishing, SiteCode) %>% 
+  unique() %>% 
+  mutate(Transect_area = Transect_length_m*5) %>% #Calculating transect area using transect width 5m
+  #Calculating tons per hectare as gram/m2 divided by 100
+  summarise(Tons_hectare = (Biomass_sp_period/Transect_area)/100, 
+            Method, Fishing, SiteCode) %>% 
   group_by(Site, ValidName) %>% 
-  summarise(Tons_hec_sp = sum(T_hec), Method = Method, Fishing = Fishing) %>% #Tons pr. species pr. hectare
-  distinct() %>% 
-  ungroup()
-#These calculations can be deleted/changed when decision has been made for the periods.
+  #Calculating the biomass of each species per site in tons per hectare (as average of periods)
+  summarise(Biomass_site_sp = mean(Tons_hectare), 
+            ValidName, Method, Fishing, SiteCode) %>% 
+  unique() %>% 
+  group_by(Site) %>% 
+  mutate(Biomass_site = sum(Biomass_site_sp)) #sum of biomass per site in tons per hectare
 
 
 # Biomass calculations UVC ---------------------------------------------
@@ -567,52 +638,81 @@ Biomass_UVC <- UVC %>%
   #then apply the exponent b and finally multiply by a.
   #The equation is therefore: a*((LenLenRatio*Length_cm)^b)
   mutate(Biomass_N = a*((TLRatio*Length_cm)^b)) %>% 
-  group_by(Site, Period, Method, ValidName) %>% 
-  #Summing biomass for each species in Biomass_sp
-  summarise(Biomass_sp = sum(Biomass_N), Transect_length_m, Fishing) %>% 
-  ungroup() %>% 
-  mutate(Transect_area = Transect_length_m*5) %>% 
-  #Tons (1000 kg, 10^6 gram) of each species per hectare (10.000 m^2), note biomass_sp is in gram.
-  mutate(T_hec = (Biomass_sp/(10^6))/(Transect_area/(10^4))) %>% 
-  distinct()
-#Correct this after decision about periods
-
-#Sum biomass of each species per site in tons per hectare
-Biomass_UVC <- Biomass_UVC %>% 
+  group_by(Site, Period, ValidName) %>% 
+  #Summing biomass for each species in each period, so I have total biomass per species per site
+  summarise(Biomass_sp_period = sum(Biomass_N), 
+            Transect_length_m, Method, Fishing, SiteCode) %>% 
+  unique() %>% 
+  mutate(Transect_area = Transect_length_m*5) %>% #Calculating transect area using transect width 5m
+  #Calculating tons per hectare as gram/m2 divided by 100
+  summarise(Tons_hectare = (Biomass_sp_period/Transect_area)/100, 
+            Method, Fishing, SiteCode) %>% 
   group_by(Site, ValidName) %>% 
-  summarise(Tons_hec_sp = sum(T_hec), Method = Method, Fishing = Fishing) %>% #Tons pr. species pr. hectare
-  distinct() %>% 
-  ungroup()
-#These calculations can be deleted/changed when decision has been made for the periods.
+  #Calculating the biomass of each species per site in tons per hectare (as average of periods)
+  summarise(Biomass_site_sp = mean(Tons_hectare), 
+            ValidName, Method, Fishing, SiteCode) %>% 
+  unique() %>% 
+  group_by(Site) %>% 
+  mutate(Biomass_site = sum(Biomass_site_sp)) #sum of biomass per site in tons per hectare
+
+# Biomass boxplot ---------------------------------------------------------
+
+#Combining biomass data for DOVS and UVC
+Biomass <- rbind(Biomass_DOVS, Biomass_UVC)
+
+
+#plot biomass in tons per hectare
+ggplot(Biomass, aes(x = Fishing, y = Biomass_site, fill = Method)) +
+  geom_boxplot() + 
+  scale_x_discrete(name = "Zonation") +
+  scale_y_continuous(name = "Tons"~hectare^-1) +
+  theme_classic()
+
+#plotting biomass without outlier
+test <- Biomass %>% 
+  filter(!(Biomass_site > 30))
+
+#plot biomass in tons per hectare
+ggplot(test, aes(x = Fishing, y = Biomass_site, fill = Method)) +
+  geom_boxplot() + 
+  scale_x_discrete(name = "Zonation") +
+  scale_y_continuous(name = "Tons"~hectare^-1) +
+  theme_classic()
+rm(test)
+
+#Deleting variables that are no longer needed
+rm(Biomass_DOVS, Biomass_UVC)
 
 
 # PCO plot for biomass --------------------------------------
 
-#Making biomass data frame for matrix
-Biomass <- rbind(Biomass_DOVS, Biomass_UVC)
-
 #Making matrix for dissimilarity calculation DOVS and UVC
 Bio_mat <- Biomass %>% 
-  select(-Fishing) %>% 
+  select(-c(Fishing, SiteCode, Biomass_site)) %>% 
   unite(SiteMet, Site, Method, sep = " ") %>% 
-  pivot_wider(names_from = "ValidName", values_from = "Tons_hec_sp") %>% #Making the format right for the matrix
+  pivot_wider(names_from = "ValidName", values_from = "Biomass_site_sp") %>% #Making the format right for the matrix
   column_to_rownames("SiteMet") %>% #Making a column into row names for the matrix
   as.matrix() %>% 
   replace_na(0)#Putting 0 instead of NA, when the species was not observed at the site.
 
 #Checking QQplot for biomass of both methods
-qqnorm(sqrt(sqrt(Biomass$Tons_hec_sp)))
-qqline(sqrt(sqrt(Biomass$Tons_hec_sp)), col = "red")
+qqnorm(sqrt(sqrt(Biomass$Biomass_site_sp)))
+qqline(sqrt(sqrt(Biomass$Biomass_site_sp)), col = "red")
 
 #Applying a 4th root transformation to matrix
 Bio_mat <- sqrt(sqrt(Bio_mat))
 #Calculating dissimilarity distance using vegan package, the default is Bray Curtis
 Bio_mat_dist <- vegdist(Bio_mat, method = "bray")
 #Create a PCoA (Principal Co-ordinates Analysis) plot
-Bio_mat_pco <- wcmdscale(Bio_mat, eig = T) #returns matrix of scores scaled by eigenvalues
+Bio_mat_pco <- wcmdscale(Bio_mat_dist, eig = TRUE) #returns matrix of scores scaled by eigenvalues
 #Show plot
 plot(Bio_mat_pco, type = "points") #Add type points to remove labels
 
+# Principal coordinate analysis and simple ordination plot
+library(ape)
+Bio_mat_pcoa <- pcoa(Bio_mat_dist)
+#Biplot with arrows
+biplot(Bio_mat_pcoa, Bio_mat)
 
 #binding PCO coordinates to dataframe
 PCO_biomass <- as.data.frame(Bio_mat_pco$points[,1:2])
@@ -632,132 +732,213 @@ ggplot(PCO_biomass, aes(PC1, PC2, col = Method, fill = Method)) +
   theme_bw() + 
   theme(panel.grid = element_blank())
 
-#Remove unnecessary variables
-rm(Bio_mat_pco, PCO_biomass)
+#plotting PCO with status based on dissimilarity from biomass
+ggplot(PCO_biomass, aes(PC1, PC2, col = Fishing, fill = Fishing)) + 
+  stat_ellipse(geom = "polygon", col = "black", alpha = 0.5) + 
+  geom_point(shape = 21, col = "black") +
+  theme_bw() + 
+  theme(panel.grid = element_blank())
 
-# PCO plot using factoextra -----------------------------------------------
-library(factoextra)
-
-#I have not given this part good names yet, because it is not yet working as I want it to - SFH
-
-#Making pcoa plot with factoextra
-my.pca <- prcomp(Bio_mat, center = TRUE, scale = TRUE) #Making PCOA from biomass matrix
-fviz_eig(my.pca)
-
-#data frame with variables of method and fishing for the sites
-x <- Biomass %>% 
-  select(-c(ValidName, Tons_hec_sp)) %>% 
-  distinct() %>% 
-  unite(SiteMet, Site, Method, sep = " ") %>% 
-  mutate(Method = case_when(endsWith(SiteMet, "DOVS") ~ "DOVS",
-                            endsWith(SiteMet, "UVC") ~ "UVC"))
-
-method <- as.factor(x$Method) #methods for plotting in pcoa plot
-status <- as.factor(x$Fishing) #This one I have not been able to plot in the pcoa plot
-#Pcoa plot
-#closest plot to what I want, but I cannot find a way to add the status of open or closed to fishing
-fviz_pca_biplot(my.pca, repel = TRUE,
-                col.var = "black", # Variables color
-                palette = c("#00AFBB",  "#FC4E07"),
-                col.ind = method, # Individuals color
-                geom.ind = "point")
-
-#plot showing what species are contributing more
-fviz_pca_biplot(my.pca,
-                # individuals
-                geom.ind = "point",
-                fill.ind = method, col.ind = "black",
-                pointshape = 21, pointsize = 2,
-                # variables
-                col.var = "contrib",
-                gradient.cols = "RdYlBu",
-                legend.title = list(fill = "Species",
-                                    color = "Contrib",
-                                    alpha = "Contrib")) +
-  scale_color_gradient2(low = "lightgrey", mid = "grey", high = "black", midpoint = 4)
-
-#other scale
-#scale_color_gradient2(low = "blue", mid = "steelblue", high = "red", midpoint = 4)
-
-
-#trying in ggplot2 and factoextra
-basic_plot <- fviz_pca_ind(my.pca, label="none")
-
-ggplot(cbind(basic_plot$data,x[,c("Fishing","Method")]),
-       aes(x=x,y=y,col=Fishing,shape=Method)) + 
-  geom_point() + 
-  theme_bw()
-#this plot differentiates between method and fishing, but I cannot add the arrows showing what species determine
-#the difference between the sites - which are in a normal PCO plot
-
-rm(basic_plot, my.pca, x, method, status)
-
-
-
-# Boxplot biomass ---------------------------------------------------------
-
-#Summing biomass across species to get a ton per hectare for each site, to compare methods
-Biomass <- Biomass %>% 
-  group_by(Site, Method) %>% 
-  mutate(Tons_hec_all = sum(Tons_hec_sp)) %>% 
-  ungroup() %>% 
-  select(-c(ValidName, Tons_hec_sp)) %>% #Removing species and tons per hectare of individual species
-  distinct()
-
-#Remove unnecessary variables
-rm(Biomass_UVC, Biomass_DOVS)
-
-#plot species richness
-ggplot(Biomass, aes(x = Fishing, y = Tons_hec_all, fill = Method)) +
-  geom_boxplot() + 
-  scale_x_discrete(name = "Zonation") +
-  scale_y_continuous(name = "Tons"~hectare^-1) +
+#plot with color indicating zonation (open or closed to fishing), shape = method
+ggplot(PCO_biomass) + 
+  geom_point(aes(PC1, PC2, color = Fishing, shape = Method), size = 2) +
+  scale_color_grey() +
   theme_classic()
 
-#Plotting without the ouliers
-test <- Biomass %>% filter(!(Tons_hec_all > 100))
+#Remove unnecessary variables
+rm(PCO_biomass, Bio_mat, Bio_mat_pco, Bio_mat_pcoa)
 
-ggplot(test, aes(x = Fishing, y = Tons_hec_all, fill = Method)) +
-  geom_boxplot() + 
-  scale_x_discrete(name = "Zonation") +
-  scale_y_continuous(name = "Tons"~hectare^-1) +
-  theme_classic()
-rm(test)
 
-# PERMANOVA ---------------------------------------------------------------
+# PERMANOVA biomass ---------------------------------------------------
 
 #Distance matrix from biomass data
-Dist_mat <- as.matrix(Bio_mat)
-
-#Making richness and density across sites ##This might be what I should actually have done for boxplots
-temp1 <- Richness %>% 
-  select(Site, Period, Method, Richness_area) %>% 
-  group_by(Site, Method) %>% 
-  mutate(Richness_site = sum(Richness_area)) %>% 
-  ungroup() %>% 
-  select(-c(Period, Richness_area)) %>% 
-  distinct()
-
-temp2 <- Density %>% 
-  select(Site, Period, Method, Density_area) %>% 
-  group_by(Site, Method) %>% 
-  mutate(Density_site = sum(Density_area)) %>% 
-  ungroup() %>% 
-  select(-c(Period, Density_area)) %>% 
-  distinct()
+Dist_mat <- as.matrix(Bio_mat_dist)
 
 #Data frame for permanova Factors to be tested
 Factors <- Biomass %>% 
-  right_join(temp1, by = c("Site", "Method")) %>% 
-  left_join(temp2, by = c("Site", "Method"))
+  right_join(Richness %>% select(Site, Method, Site_sp_hectare), 
+             by = c("Site", "Method")) %>% 
+  left_join(Density %>% select(Site, Method, N_site_hectare), 
+            by = c("Site", "Method")) %>% 
+  drop_na() %>% 
+  select(-c(ValidName, Biomass_site_sp)) %>% 
+  unique()
 
-#Remove temp1 and 2
-rm(temp1, temp2)
+#One permanova to test biomass between methods, sites and status (Fishing, open or closed)
+adonis(Dist_mat ~ Method/Fishing + Method/Biomass_site + Biomass_site/Fishing,
+       data = Factors, permutations = 999)
+#I have done it this way because Method is nested within Fishing status (open or closed)
+#Method is also nested within each site, with the site data being of biomass
+#Lastly, the site is nested within the Fishing status
 
+#Individual Permanovas, I think the right way to do it is to combine them as above
 #PERMANOVA fishing
-adonis(Dist_mat ~ Fishing/Method, data = Factors, permutations = 10000)
+adonis(Dist_mat ~ Method/Fishing, data = Factors, permutations = 9999)
 #PERMANOVA biomass
-adonis(Dist_mat ~ Tons_hec_all/Method, data = Factors, permutations = 10000)
+adonis(Dist_mat ~ Method/Biomass_site, data = Factors, permutations = 9999)
+#PERMANOVA fishing and biomass
+adonis(Dist_mat ~ Biomass_site/Fishing, data = Factors, permutations = 9999)
+
+
+#Checking for dispersion of groups - Method
+dispersion <- betadisper(Bio_mat_dist, group = Factors$Method)
+permutest(dispersion)
+#Plotting dispersion
+plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
+
+#Checking for dispersion of groups - Fishing
+dispersion <- betadisper(Bio_mat_dist, group = Factors$Fishing)
+permutest(dispersion)
+#Plotting dispersion
+plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
+
+rm(dispersion, Dist_mat, Bio_mat, Bio_mat_dist)
+
+
+# PCO plot for density ---------------------------------------------------------
+
+#Calculating average density of each species per site for DOVS
+Den_sp_DOVS <- DOVS %>% 
+  select(Site, Period, N, Method, ValidName, Fishing, SiteCode, Transect_length_m) %>% 
+  mutate(Transect_area = Transect_length_m*5) %>%  #calculating transect area by multiplying with width 5m
+  group_by(Site, Period, ValidName) %>% 
+  summarise(N_period = sum(N), #Sum of abundance of species within each period
+            Method, Fishing, SiteCode, Transect_area) %>% 
+  unique() %>%
+  mutate(N_hectare = N_period/(Transect_area/(10^4))) %>% #Number/hectare
+  group_by(Site, ValidName) %>% 
+  summarise(N_site_sp = mean(N_hectare), #Calculating average abundance of each species per site
+            Method, Fishing, SiteCode, ValidName, N_site_sp) %>% 
+  unique()
+
+#Calculating average density of each species per site for UVC
+Den_sp_UVC <- UVC %>% 
+  select(Site, Period, N, Method, ValidName, Fishing, SiteCode, Transect_length_m) %>% 
+  mutate(Transect_area = Transect_length_m*5) %>%  #calculating transect area by multiplying with width 5m
+  group_by(Site, Period, ValidName) %>% 
+  summarise(N_period = sum(N), #Sum of abundance of species within each period
+            Method, Fishing, SiteCode, Transect_area) %>% 
+  unique() %>%
+  mutate(N_hectare = N_period/(Transect_area/(10^4))) %>% #Number/hectare
+  group_by(Site, ValidName) %>% 
+  summarise(N_site_sp = mean(N_hectare), #Calculating average abundance of each species per site
+            Method, Fishing, SiteCode, ValidName, N_site_sp) %>% 
+  unique()
+
+#Combining average density for DOVS and UVC and making a matrix
+Den_sp <- rbind(Den_sp_DOVS, Den_sp_UVC)
+Den_mat <- Den_sp %>% 
+  select(-c(Fishing, SiteCode)) %>% 
+  unite(SiteMet, Site, Method, sep = " ") %>% 
+  pivot_wider(names_from = "ValidName", values_from = "N_site_sp") %>% #Making the format right for the matrix
+  column_to_rownames("SiteMet") %>% #Making a column into row names for the matrix
+  as.matrix() %>% 
+  replace_na(0)#Putting 0 instead of NA, when the species was not observed at the site.
+
+#Removing unnecessary variables
+rm(Den_sp_DOVS, Den_sp_UVC)
+
+#Checking QQplot for biomass of both methods
+qqnorm(sqrt(sqrt(Den_sp$N_site_sp)))
+qqline(sqrt(sqrt(Den_sp$N_site_sp)), col = "red")
+
+#Applying a 4th root transformation to matrix
+Den_mat <- sqrt(sqrt(Den_mat))
+#Calculating dissimilarity distance using vegan package, the default is Bray Curtis
+Den_mat_dist <- vegdist(Den_mat, method = "bray")
+#Create a PCoA (Principal Co-ordinates Analysis) plot
+Den_mat_pco <- wcmdscale(Den_mat_dist, eig = TRUE) #returns matrix of scores scaled by eigenvalues
+#Show plot
+plot(Den_mat_pco, type = "points") #Add type points to remove labels
+
+# Principal coordinate analysis and simple ordination plot
+library(ape)
+Den_mat_pcoa <- pcoa(Den_mat_dist)
+#Biplot with arrows
+biplot(Den_mat_pcoa, Den_mat)
+
+#binding PCO coordinates to dataframe
+PCO_density <- as.data.frame(Den_mat_pco$points[,1:2])
+PCO_density <- setDT(PCO_density, keep.rownames = TRUE)[]
+PCO_density <- PCO_density %>% 
+  rename(Site = rn, PC1 = Dim1, PC2 = Dim2) %>% 
+  mutate(Method = case_when(endsWith(Site, "DOVS") ~ "DOVS",
+                            endsWith(Site, "UVC") ~ "UVC")) %>% #Getting methods from site name
+  mutate(Site = str_remove_all(Site, " DOVS| UVC")) %>% #Removing DOVS and UVC from site names
+  left_join(Density %>% select(Site, Method, Fishing) %>% unique(), 
+            by = c("Site", "Method"))
+
+#plotting PCO with methods based on dissimilarity from density
+ggplot(PCO_density, aes(PC1, PC2, col = Method, fill = Method)) + 
+  stat_ellipse(geom = "polygon", col = "black", alpha = 0.5) + 
+  geom_point(shape = 21, col = "black") +
+  theme_bw() + 
+  theme(panel.grid = element_blank())
+
+#plotting PCO with status based on dissimilarity from density
+ggplot(PCO_density, aes(PC1, PC2, col = Fishing, fill = Fishing)) + 
+  stat_ellipse(geom = "polygon", col = "black", alpha = 0.5) + 
+  geom_point(shape = 21, col = "black") +
+  theme_bw() + 
+  theme(panel.grid = element_blank())
+
+#plot with color indicating zonation (open or closed to fishing), shape = method
+ggplot(PCO_density) + 
+  geom_point(aes(PC1, PC2, color = Fishing, shape = Method), size = 2) +
+  scale_color_grey() +
+  theme_classic()
+
+#Remove unnecessary variables
+rm(PCO_density, Den_sp, Den_mat, Den_mat_pco, Den_mat_pcoa)
+
+
+# PERMANOVA density and species richness -------------------------------------------------------
+
+#Distance matrix from biomass data
+Dist_mat <- as.matrix(Den_mat_dist)
+
+#One permanova to test biomass between methods, sites and status (Fishing, open or closed)
+adonis(Dist_mat ~ Method/Fishing + Method/N_site_hectare + N_site_hectare/Fishing,
+       data = Factors, permutations = 999)
+#I have done it this way because Method is nested within Fishing status (open or closed)
+#Method is also nested within each site, with the site data being of biomass
+#Lastly, the site is nested within the Fishing status
+
+#Checking for dispersion of groups - Method
+dispersion <- betadisper(Den_mat_dist, group = Factors$Method)
+permutest(dispersion)
+#Plotting dispersion
+plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
+
+#Checking for dispersion of groups - Fishing
+dispersion <- betadisper(Den_mat_dist, group = Factors$Fishing)
+permutest(dispersion)
+#Plotting dispersion
+plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
+
+
+### Species Richness ###
+#For species richness PERMANOVA the same distance matrix is used as for abundance
+
+#One permanova to test biomass between methods, sites and status (Fishing, open or closed)
+adonis(Dist_mat ~ Method/Fishing + Method/Site_sp_hectare + Site_sp_hectare/Fishing,
+       data = Factors, permutations = 999)
+#I have done it this way because Method is nested within Fishing status (open or closed)
+#Method is also nested within each site, with the site data being of biomass
+#Lastly, the site is nested within the Fishing status
+
+#The dispersion for the PERMANOVA for species richness will be the same as for density, 
+#because the same distance matrix is used. 
+
+
+#Removing unnecessary variables
+rm(dispersion, Dist_mat, Factors)
+
+
+
+
+# Notes 1 -----------------------------------------------------------------
+
 
 
 #Do these two below need their own distance matrices?
@@ -767,7 +948,7 @@ adonis(Dist_mat ~ Richness_site/Method, data = Factors, permutations = 10000)
 adonis(Dist_mat ~ Density_site/Method, data = Factors, permutations = 10000)
 
 #remove variables
-rm(Dist_mat, Factors)
+rm(Dist_mat)
 
 
 
