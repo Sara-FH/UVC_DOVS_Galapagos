@@ -350,8 +350,24 @@ corrDOVS <- DOVS_FullDB %>%
   #Remove any instances where the precision is > 10% of length
   filter(Precision_mm < Length_mm*0.1) %>% 
   bind_rows(MLcorr)
+
+#Taking the species that did not need correction (N=1) from DOVS_FullDB and adding to corrDOVS
+N1_DOVS <- DOVS_FullDB %>% 
+  #Removing columns that are not needed for this analysis - DFA
+  select(-c(Comment, Stage, Depth)) %>% 
+  #Removing empty rows in Family and period
+  filter(Family != "" & Period != "") %>% 
+  #Keep rows with more than one individual
+  filter(N == 1) %>% 
+  #Remove any instances where the precision is > 10% of length
+  filter(Precision_mm < Length_mm*0.1)
+
+#Binding N=1 data to corrected DOVS data
+corrDOVS <- corrDOVS %>% 
+  rbind(N1_DOVS)
+
 #Removing variables we no longer need
-rm(MLcorr, x)
+rm(MLcorr, x, N1_DOVS)
 
 
 # Tidying up DOVS data -----------------------------------------------------
@@ -428,10 +444,10 @@ DOVS <- DOVS %>% filter(ValidName %in% SpeciesUVC)
 # Species richness boxplot ------------------------------------------------
 
 #Sites in SiteInfo, that do not have clean data in DOVS and UVC
-unique(SiteInfo$Site[!SiteInfo$Site %in% DOVS$Site])
-unique(SiteInfo$Site[!SiteInfo$Site %in% UVC$Site])
-#Different sites have dissapeared from the DOVS and UVC data after the cleaning process. 
-#Should these sites then be deleted?
+unique(SiteInfo$Site[!SiteInfo$Site %in% DOVS$Site]) #No fish in DOVS
+unique(SiteInfo$Site[!SiteInfo$Site %in% UVC$Site]) #No fish in UVC
+#Different sites have dissapeared from the DOVS and UVC data after the cleaning process - removing non-predators. 
+#These sites are kept as empty sites.
 
 #Making data frame for empty periods (no species) in DOVS data
 EmptyPeriods_DOVS <- SiteInfo %>% 
@@ -575,88 +591,9 @@ rm(test)
 
 #Deleting variables that are no longer needed
 rm(DOVS_density, UVC_density)
-#using EmptyPeriods data frames for UVC and DOVS for alternative biomass calculations
+
 
 # Biomass calculations DOVS ----------------------------------------------------
-#Quality Control
-#Prior to calculating biomass we need our DOVS measurements to meet two requirements
-#1. RMS <= 20
-#2. Precision <= 10% estimated Length 
-#point 2 has already been done in Cleaning multiple individuals with one measurement
-DOVS <- DOVS %>% filter(RMS_mm <= 50) %>% #Because of blurry video RMS is higher than 20, no RMS was higher than 50
-  #We also need to change the units of the lengths from mm to cm prior to biomass calculation
-  mutate(Length_mm = Length_mm/10) %>% 
-  #Now we rename the column to avoid confusion
-  rename("Length_cm"="Length_mm") %>% 
-  #We will drop columns we do not need
-  select(-c(Precision_mm, RMS_mm, Range_mm))
-
-#For these calculations there is no need to make use of the empty periods, as averages are calculated 
-#per species, so empty periods are not affecting the average biomass per sp per site
-
-#Calculating biomass for DOVS
-Biomass_DOVS <- DOVS %>%
-  mutate(LenLenRatio = as.numeric(LenLenRatio)) %>% 
-  #The fish biomass equation is W = a*L^b, therefore first transform the length, 
-  #then apply the exponent b and finally multiply by a.
-  #The equation is therefore: a*((LenLenRatio*Length_cm)^b)
-  mutate(Biomass_N = a*((LenLenRatio*Length_cm)^b)) %>% #Biomass for the number of individuals of each species
-  group_by(Site, Period, ValidName) %>% 
-  #Summing biomass for each species in each period, so I have total biomass per species per period
-  summarise(Biomass_sp_period = sum(Biomass_N), 
-            Transect_length_m, Method, Fishing, SiteCode) %>% 
-  unique() %>% 
-  mutate(Transect_area = Transect_length_m*5) %>% #Calculating transect area using transect width 5m
-  #Calculating tons per hectare as gram/m2 divided by 100
-  summarise(Tons_hectare = (Biomass_sp_period/Transect_area)/100, 
-            Method, Fishing, SiteCode) %>% 
-  group_by(Site, ValidName) %>% 
-  #Calculating the biomass of each species per site in tons per hectare (as average of periods)
-  summarise(Biomass_site_sp = mean(Tons_hectare), 
-            ValidName, Method, Fishing, SiteCode) %>% 
-  unique() %>% 
-  group_by(Site) %>% 
-  mutate(Biomass_site = sum(Biomass_site_sp)) #sum of biomass per site in tons per hectare
-
-
-# Biomass calculations UVC ---------------------------------------------
-#Loading total length ratio for FishDB data
-TLRatio <- read.xlsx2("Data/TLRatio.xlsx",
-                      sheetName = 1, header = TRUE, stringsAsFactors = FALSE) %>% 
-  mutate(TLRatio = as.numeric(TLRatio))
-str(TLRatio) #TLRation is numeric
-
-#Adding TLRatio to UVC data
-UVC <- UVC %>% 
-  left_join(TLRatio %>% select(ValidName, TLRatio), by = c("ValidName")) %>% 
-  select(-LenLenRatio)
-#Removing TLRation
-rm(TLRatio)
-
-#Calculating biomass UVC
-Biomass_UVC <- UVC %>% 
-  #The fish biomass equation is W = a*L^b, therefore first transform the length, 
-  #then apply the exponent b and finally multiply by a.
-  #The equation is therefore: a*((LenLenRatio*Length_cm)^b)
-  mutate(Biomass_N = a*((TLRatio*Length_cm)^b)) %>% 
-  group_by(Site, Period, ValidName) %>% 
-  #Summing biomass for each species in each period, so I have total biomass per species per site
-  summarise(Biomass_sp_period = sum(Biomass_N), 
-            Transect_length_m, Method, Fishing, SiteCode) %>% 
-  unique() %>% 
-  mutate(Transect_area = Transect_length_m*5) %>% #Calculating transect area using transect width 5m
-  #Calculating tons per hectare as gram/m2 divided by 100
-  summarise(Tons_hectare = (Biomass_sp_period/Transect_area)/100, 
-            Method, Fishing, SiteCode) %>% 
-  group_by(Site, ValidName) %>% 
-  #Calculating the biomass of each species per site in tons per hectare (as average of periods)
-  summarise(Biomass_site_sp = mean(Tons_hectare), 
-            ValidName, Method, Fishing, SiteCode) %>% 
-  unique() %>% 
-  group_by(Site) %>% 
-  mutate(Biomass_site = sum(Biomass_site_sp)) #sum of biomass per site in tons per hectare
-
-# ALTERNATIVE Biomass calculations DOVS ----------------------------------------------------
 #Quality Control
 #Prior to calculating biomass we need our DOVS measurements to meet two requirements
 #1. RMS <= 20
@@ -695,7 +632,7 @@ Biomass_DOVS <- DOVS %>%
   unique()
 
 
-# ALTERNATIVE Biomass calculations UVC ---------------------------------------------
+# Biomass calculations UVC ---------------------------------------------
 #Loading total length ratio for FishDB data
 TLRatio <- read.xlsx2("Data/TLRatio.xlsx",
                       sheetName = 1, header = TRUE, stringsAsFactors = FALSE) %>% 
@@ -733,7 +670,7 @@ Biomass_UVC <- UVC %>%
   unique()
 
 
-# ALTERNATIVE Biomass boxplot ---------------------------------------------------------
+# Biomass boxplot ---------------------------------------------------------
 
 #Removing EmptyPeriods data frames, as they are no longer needed
 rm(EmptyPeriods_DOVS, EmptyPeriods_UVC)
@@ -763,40 +700,68 @@ rm(test)
 
 #Deleting variables that are no longer needed
 rm(Biomass_DOVS, Biomass_UVC)
-# Biomass boxplot ---------------------------------------------------------
-
-#Combining biomass data for DOVS and UVC
-Biomass <- rbind(Biomass_DOVS, Biomass_UVC)
 
 
-#plot biomass in tons per hectare
-ggplot(Biomass, aes(x = Fishing, y = Biomass_site, fill = Method)) +
-  geom_boxplot() + 
-  scale_x_discrete(name = "Zonation") +
-  scale_y_continuous(name = "Tons"~hectare^-1) +
-  theme_classic()
+# Biomass calculations for PCO ---------------------------------------------
 
-#plotting biomass without outlier
-test <- Biomass %>% 
-  filter(!(Biomass_site > 30))
+#For these calculations there is no need to make use of the empty periods, as averages are calculated 
+#per species, so empty periods are not affecting the average biomass per sp per site
+#These calculations will be used for the matrix to do the biomass PCO
 
-#plot biomass in tons per hectare
-ggplot(test, aes(x = Fishing, y = Biomass_site, fill = Method)) +
-  geom_boxplot() + 
-  scale_x_discrete(name = "Zonation") +
-  scale_y_continuous(name = "Tons"~hectare^-1) +
-  theme_classic()
-rm(test)
+#Calculating biomass for DOVS
+Biomass_sp_DOVS <- DOVS %>%
+  mutate(LenLenRatio = as.numeric(LenLenRatio)) %>% 
+  #The fish biomass equation is W = a*L^b, therefore first transform the length, 
+  #then apply the exponent b and finally multiply by a.
+  #The equation is therefore: a*((LenLenRatio*Length_cm)^b)
+  mutate(Biomass_N = a*((LenLenRatio*Length_cm)^b)) %>% #Biomass for the number of individuals of each species
+  group_by(Site, Period, ValidName) %>% 
+  #Summing biomass for each species in each period, so I have total biomass per species per period
+  summarise(Biomass_sp_period = sum(Biomass_N), 
+            Transect_length_m, Method, Fishing, SiteCode) %>% 
+  unique() %>% 
+  mutate(Transect_area = Transect_length_m*5) %>% #Calculating transect area using transect width 5m
+  #Calculating tons per hectare as gram/m2 divided by 100
+  summarise(Tons_hectare = (Biomass_sp_period/Transect_area)/100, 
+            Method, Fishing, SiteCode) %>% 
+  group_by(Site, ValidName) %>% 
+  #Calculating the biomass of each species per site in tons per hectare (as average of periods)
+  summarise(Biomass_site_sp = mean(Tons_hectare), 
+            ValidName, Method, Fishing, SiteCode) %>% 
+  unique() %>% 
+  ungroup()
 
-#Deleting variables that are no longer needed
-rm(Biomass_DOVS, Biomass_UVC)
+#Calculating biomass UVC
+Biomass_sp_UVC <- UVC %>% 
+  #The fish biomass equation is W = a*L^b, therefore first transform the length, 
+  #then apply the exponent b and finally multiply by a.
+  #The equation is therefore: a*((LenLenRatio*Length_cm)^b)
+  mutate(Biomass_N = a*((TLRatio*Length_cm)^b)) %>% 
+  group_by(Site, Period, ValidName) %>% 
+  #Summing biomass for each species in each period, so I have total biomass per species per site
+  summarise(Biomass_sp_period = sum(Biomass_N), 
+            Transect_length_m, Method, Fishing, SiteCode) %>% 
+  unique() %>% 
+  mutate(Transect_area = Transect_length_m*5) %>% #Calculating transect area using transect width 5m
+  #Calculating tons per hectare as gram/m2 divided by 100
+  summarise(Tons_hectare = (Biomass_sp_period/Transect_area)/100, 
+            Method, Fishing, SiteCode) %>% 
+  group_by(Site, ValidName) %>% 
+  #Calculating the biomass of each species per site in tons per hectare (as average of periods)
+  summarise(Biomass_site_sp = mean(Tons_hectare), 
+            ValidName, Method, Fishing, SiteCode) %>% 
+  unique() %>% 
+  ungroup()
+
+#Combine biomass per species data frames
+Biomass_sp <- rbind(Biomass_sp_DOVS, Biomass_sp_UVC)
 
 
 # PCO plot for biomass --------------------------------------
 
 #Making matrix for dissimilarity calculation DOVS and UVC
-Bio_mat <- Biomass %>% 
-  select(-c(Fishing, SiteCode, Biomass_site)) %>% 
+Bio_mat <- Biomass_sp %>% 
+  select(-c(Fishing, SiteCode)) %>% 
   unite(SiteMet, Site, Method, sep = " ") %>% 
   pivot_wider(names_from = "ValidName", values_from = "Biomass_site_sp") %>% #Making the format right for the matrix
   column_to_rownames("SiteMet") %>% #Making a column into row names for the matrix
@@ -804,8 +769,8 @@ Bio_mat <- Biomass %>%
   replace_na(0)#Putting 0 instead of NA, when the species was not observed at the site.
 
 #Checking QQplot for biomass of both methods
-qqnorm(sqrt(sqrt(Biomass$Biomass_site_sp)))
-qqline(sqrt(sqrt(Biomass$Biomass_site_sp)), col = "red")
+qqnorm(sqrt(sqrt(Biomass_sp$Biomass_site_sp)))
+qqline(sqrt(sqrt(Biomass_sp$Biomass_site_sp)), col = "red")
 
 #Applying a 4th root transformation to matrix
 Bio_mat <- sqrt(sqrt(Bio_mat))
@@ -820,6 +785,7 @@ plot(Bio_mat_pco, type = "points") #Add type points to remove labels
 Bio_mat_pcoa <- pcoa(Bio_mat_dist)
 #Biplot with arrows
 biplot(Bio_mat_pcoa, Bio_mat)
+biplot(Bio_mat_pcoa, Bio_mat, expand = 2)
 
 #binding PCO coordinates to dataframe
 PCO_biomass <- as.data.frame(Bio_mat_pco$points[,1:2])
@@ -861,18 +827,21 @@ rm(PCO_biomass, Bio_mat, Bio_mat_pco, Bio_mat_pcoa)
 #Distance matrix from biomass data
 Dist_mat <- as.matrix(Bio_mat_dist)
 
+#Sites in SiteInfo, that do not have any fish
+unique(SiteInfo$Site[!SiteInfo$Site %in% DOVS$Site]) #No fish in DOVS
+unique(SiteInfo$Site[!SiteInfo$Site %in% UVC$Site]) #No fish in UVC
+
 #Data frame for permanova Factors to be tested
 Factors <- Biomass %>% 
   right_join(Richness %>% select(Site, Method, Site_sp_hectare), 
              by = c("Site", "Method")) %>% 
   left_join(Density %>% select(Site, Method, N_site_hectare), 
             by = c("Site", "Method")) %>% 
-  drop_na() %>% 
-  select(-c(ValidName, Biomass_site_sp)) %>% 
-  unique()
+  #Removing empty sites, as they have no dissimilarity values
+  filter(!(Tons_hectare_site == 0 & Site_sp_hectare == 0 & N_site_hectare == 0))
 
 #One permanova to test biomass between methods, sites and status (Fishing, open or closed)
-adonis(Dist_mat ~ Method/Fishing + Method/Biomass_site + Biomass_site/Fishing,
+adonis(Dist_mat ~ Method/Fishing + Method/Tons_hectare_site + Tons_hectare_site/Fishing,
        data = Factors, permutations = 999)
 #I have done it this way because Method is nested within Fishing status (open or closed)
 #Method is also nested within each site, with the site data being of biomass
@@ -1040,6 +1009,47 @@ adonis(Dist_mat ~ Method/Fishing + Method/Site_sp_hectare + Site_sp_hectare/Fish
 #Removing unnecessary variables
 rm(dispersion, Dist_mat, Den_mat_dist, Factors)
 
+
+# PCO plot for biomass with numbers ---------------------------------------
+
+#Adding number instead of site
+Number <- Biomass_sp %>% 
+  select(Site) %>% 
+  unique() %>% 
+  mutate(SiteNumber = replace(Site, Site == Site, 1:73))
+Biomass_sp <- Biomass_sp %>% 
+  left_join(Number, by = "Site") %>% 
+  mutate(Method = recode(Method, 
+                         "DOVS" = "D", 
+                         "UVC" = "U"))
+rm(Number)
+
+#Making matrix for dissimilarity calculation DOVS and UVC
+Bio_mat <- Biomass_sp %>% 
+  select(-c(Fishing, SiteCode, Site)) %>%
+  unite(SiteMet, SiteNumber, Method, sep = " ") %>% 
+  pivot_wider(names_from = "ValidName", values_from = "Biomass_site_sp") %>% #Making the format right for the matrix
+  column_to_rownames("SiteMet") %>% #Making a column into row names for the matrix
+  as.matrix() %>% 
+  replace_na(0)#Putting 0 instead of NA, when the species was not observed at the site.
+
+#Applying a 4th root transformation to matrix
+Bio_mat <- sqrt(sqrt(Bio_mat))
+#Calculating dissimilarity distance using vegan package, the default is Bray Curtis
+Bio_mat_dist <- vegdist(Bio_mat, method = "bray")
+#Create a PCoA (Principal Co-ordinates Analysis) plot
+Bio_mat_pco <- wcmdscale(Bio_mat_dist, eig = TRUE) #returns matrix of scores scaled by eigenvalues
+#Show plot
+plot(Bio_mat_pco, type = "points") #Add type points to remove labels
+
+# Principal coordinate analysis and simple ordination plot
+Bio_mat_pcoa <- pcoa(Bio_mat_dist)
+#Biplot with arrows
+biplot(Bio_mat_pcoa, Bio_mat)
+biplot(Bio_mat_pcoa, Bio_mat, expand = 30)
+
+#Remove unnecessary variables
+rm(PCO_biomass, Bio_mat, Bio_mat_pco, Bio_mat_pcoa, Bio_mat_dist)
 
 # Notes --------------------------------------------
 
