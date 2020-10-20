@@ -577,17 +577,13 @@ ggplot(Density, aes(x = Fishing, y = N_site_500m2, fill = Method)) +
   scale_y_continuous(name = "Number of individuals/500"~m^2) +
   theme_classic()
 
-#plotting species density without outlier
-test <- Density %>% 
-  filter(!(N_site_500m2 > 40))
-
-#plot
-ggplot(test, aes(x = Fishing, y = N_site_500m2, fill = Method)) +
+#plot species density 0-30 individuals
+ggplot(Density, aes(x = Fishing, y = N_site_500m2, fill = Method)) +
   geom_boxplot() + 
   scale_x_discrete(name = "Zonation") +
-  scale_y_continuous(name = "Number of individuals/500"~m^2) +
+  scale_y_continuous(name = "Number of individuals/500"~m^2, 
+                     limits = c(0,30)) +
   theme_classic()
-rm(test)
 
 #Deleting variables that are no longer needed
 rm(DOVS_density, UVC_density)
@@ -686,17 +682,13 @@ ggplot(Biomass, aes(x = Fishing, y = Gram_500m2_site, fill = Method)) +
   scale_y_continuous(name = "g/500"~m^2) +
   theme_classic()
 
-#plotting biomass without outlier
-test <- Biomass %>% 
-  filter(!(Gram_500m2_site > 100000))
-
-#plot biomass in g per 500m2
-ggplot(test, aes(x = Fishing, y = Gram_500m2_site, fill = Method)) +
+#plot biomass in g per 500m2 below 50,000 g
+ggplot(Biomass, aes(x = Fishing, y = Gram_500m2_site, fill = Method)) +
   geom_boxplot() + 
   scale_x_discrete(name = "Zonation") +
-  scale_y_continuous(name = "g/500"~m^2) +
+  scale_y_continuous(name = "g/500"~m^2, 
+                     limits = c(0,50000)) +
   theme_classic()
-rm(test)
 
 #Deleting variables that are no longer needed
 rm(Biomass_DOVS, Biomass_UVC)
@@ -889,12 +881,13 @@ permutest(dispersion)
 #Plotting dispersion
 plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
 
-rm(dispersion, Dist_mat, Bio_mat, Bio_mat_dist)
-
 #Permanova to test biomass between bioregion and island
 adonis(Dist_mat ~ Gram_500m2_site/Bioregion + Gram_500m2_site/Island, 
        data = Factors, permutations = 9999)
 #The biomass of each site is nested within Bioregion and within Island
+
+#Removing unnecessary variables
+rm(dispersion, Dist_mat, Bio_mat, Bio_mat_dist)
 
 
 # PCO plot for density ---------------------------------------------------------
@@ -911,7 +904,8 @@ Den_sp_DOVS <- DOVS %>%
   group_by(Site, ValidName) %>% 
   summarise(N_site_sp = mean(N_hectare), #Calculating average abundance of each species per site
             Method, Fishing, SiteCode, ValidName, N_site_sp) %>% 
-  unique()
+  unique() %>% 
+  ungroup()
 
 #Calculating average density of each species per site for UVC
 Den_sp_UVC <- UVC %>% 
@@ -925,7 +919,8 @@ Den_sp_UVC <- UVC %>%
   group_by(Site, ValidName) %>% 
   summarise(N_site_sp = mean(N_hectare), #Calculating average abundance of each species per site
             Method, Fishing, SiteCode, ValidName, N_site_sp) %>% 
-  unique()
+  unique() %>% 
+  ungroup()
 
 #Combining average density for DOVS and UVC and making a matrix
 Density_sp <- rbind(Den_sp_DOVS, Den_sp_UVC)
@@ -978,7 +973,7 @@ Den_mat_pco <- wcmdscale(Den_mat_dist, eig = TRUE) #returns matrix of scores sca
 #Show plot
 plot(Den_mat_pco, type = "points") #Add type points to remove labels
 
-# Principal coordinate analysis and simple ordination plot
+#Principal coordinate analysis and simple ordination plot
 Den_mat_pcoa <- pcoa(Den_mat_dist)
 #Biplot with arrows
 biplot(Den_mat_pcoa, Den_mat)
@@ -1015,7 +1010,7 @@ ggplot(PCO_density) +
   theme_classic()
 
 #Remove unnecessary variables
-rm(PCO_density, Den_sp, Den_mat, Den_mat_pco, Den_mat_pcoa)
+rm(PCO_density, Den_mat, Den_mat_pco, Den_mat_pcoa)
 
 
 # PERMANOVA density and species richness -------------------------------------------------------
@@ -1045,7 +1040,7 @@ plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
 #Permanova to test density between bioregion and island
 adonis(Dist_mat ~ N_site_500m2/Bioregion + N_site_500m2/Island, 
        data = Factors, permutations = 9999)
-#The densoty of each site is nested within Bioregion and within Island
+#The density of each site is nested within Bioregion and within Island
 
 ### Species Richness ###
 #For species richness PERMANOVA the same distance matrix is used as for abundance
@@ -1071,7 +1066,7 @@ rm(dispersion, Dist_mat, Den_mat_dist, Factors)
 Number <- Biomass_sp %>% 
   select(Site) %>% 
   unique() %>% 
-  mutate(SiteNumber = replace(Site, Site == Site, 1:73))
+  mutate(SiteNumber = replace(Site, Site == Site, 1:74))
 Biomass_sp <- Biomass_sp %>% 
   left_join(Number, by = "Site") %>% 
   mutate(Method = recode(Method, 
@@ -1104,7 +1099,50 @@ biplot(Bio_mat_pcoa, Bio_mat)
 biplot(Bio_mat_pcoa, Bio_mat, expand = 30)
 
 #Remove unnecessary variables
-rm(PCO_biomass, Bio_mat, Bio_mat_pco, Bio_mat_pcoa, Bio_mat_dist)
+rm(Bio_mat, Bio_mat_pco, Bio_mat_pcoa, Bio_mat_dist)
+
+
+# PCO plot for density with numbers ---------------------------------------
+
+#Adding number instead of site
+Number <- Density_sp %>% 
+  select(Site) %>% 
+  unique() %>%
+  mutate(SiteNumber = replace(Site, Site == Site, 1:74))
+Density_sp <- Density_sp %>% 
+  left_join(Number %>% select(Site, SiteNumber), 
+            by = "Site") %>% 
+  mutate(Method = recode(Method, 
+                         "DOVS" = "D", 
+                         "UVC" = "U"))
+rm(Number)
+
+#Making matrix for dissimilarity calculation DOVS and UVC
+Den_mat <- Density_sp %>% 
+  select(-c(Fishing, SiteCode, Site)) %>%
+  unite(SiteMet, SiteNumber, Method, sep = " ") %>% 
+  pivot_wider(names_from = "ValidName", values_from = "N_site_sp") %>% #Making the format right for the matrix
+  column_to_rownames("SiteMet") %>% #Making a column into row names for the matrix
+  as.matrix() %>% 
+  replace_na(0)#Putting 0 instead of NA, when the species was not observed at the site.
+
+#Applying a 4th root transformation to matrix
+Den_mat <- sqrt(sqrt(Den_mat))
+#Calculating dissimilarity distance using vegan package, the default is Bray Curtis
+Den_mat_dist <- vegdist(Den_mat, method = "bray")
+#Create a PCoA (Principal Co-ordinates Analysis) plot
+Den_mat_pco <- wcmdscale(Den_mat_dist, eig = TRUE) #returns matrix of scores scaled by eigenvalues
+#Show plot
+plot(Den_mat_pco, type = "points") #Add type points to remove labels
+
+# Principal coordinate analysis and simple ordination plot
+Den_mat_pcoa <- pcoa(Den_mat_dist)
+#Biplot with arrows
+biplot(Den_mat_pcoa, Den_mat)
+biplot(Den_mat_pcoa, Den_mat, expand = 30)
+
+#Remove unnecessary variables
+rm(Den_mat, Den_mat_pco, Den_mat_pcoa, Den_mat_dist)
 
 # Notes --------------------------------------------
 
