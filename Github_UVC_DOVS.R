@@ -1144,6 +1144,143 @@ biplot(Den_mat_pcoa, Den_mat, expand = 30)
 #Remove unnecessary variables
 rm(Den_mat, Den_mat_pco, Den_mat_pcoa, Den_mat_dist)
 
+
+# Extra tables and figures ------------------------------------------------
+#Species list for the study
+Specieslist <- UVC %>% select(Family, Genus, ValidName) %>% unique()
+
+rm(Specieslist)
+
+
+
+# Figure of biomass and density of individual species ---------------------
+
+library(gridExtra)
+library(ggpubr) #ggarrange
+library(grid) #grid.arrange
+
+#Making variable for Sphyrna lewini biomass
+Sphyrna_lewini <- Biomass_sp %>% 
+  filter(ValidName == "Sphyrna lewini")
+
+#Making data frame for empty periods (no species = no biomass) in DOVS data
+Empty <- Biomass_sp %>% 
+  select(Site, Method, Fishing, SiteCode) %>% 
+  mutate(All_site_method = paste(Site, Method, sep = " ")) %>% 
+  distinct() %>% 
+  left_join(Sphyrna_lewini %>% 
+              select(Site, Method) %>% 
+              mutate(Site_method = paste(Site, Method, sep = " ")) %>% 
+              distinct(), 
+            by = c("Site", "Method")) %>% 
+  #Filter the sites with methods that are empty for S. lewini
+  filter(!All_site_method %in% Site_method) %>% 
+  select(-c(All_site_method, Site_method)) %>% #Removing the two columns that are no longer needed
+  mutate(Biomass_site_sp = 0) %>% #Adding empty biomass column
+  mutate(ValidName = "Sphyrna lewini") #Adding column with species name
+
+#Binding to empty sites to biomass data
+Sphyrna_lewini <- Sphyrna_lewini %>% 
+  rbind(Empty)
+
+#Making temporary variable for Sphyrna lewini density
+temp <- Density_sp %>% 
+  filter(ValidName == "Sphyrna lewini")
+
+#Making data frame for empty periods (no species = no biomass) in DOVS data
+#Remember that temp currently is the sphyrna lewini density
+Empty <- Density_sp %>% 
+  select(Site, Method, Fishing, SiteCode) %>% 
+  mutate(All_site_method = paste(Site, Method, sep = " ")) %>% 
+  distinct() %>% 
+  left_join(temp %>% 
+              select(Site, Method) %>% 
+              mutate(Site_method = paste(Site, Method, sep = " ")) %>% 
+              distinct(), 
+            by = c("Site", "Method")) %>% 
+  #Filter the sites with methods that are empty for S. lewini
+  filter(!All_site_method %in% Site_method) %>% 
+  select(-c(All_site_method, Site_method)) %>% #Removing the two columns that are no longer needed
+  mutate(N_site_sp = 0) %>% #Adding empty biomass column
+  mutate(ValidName = "Sphyrna lewini") #Adding column with species name
+
+#Combine density data for Sphyrna lewini
+temp <- temp %>% 
+  rbind(Empty)
+
+#Binding to empty sites to biomass data
+Sphyrna_lewini <- Sphyrna_lewini %>% 
+  left_join(temp %>% select(Site, Method, N_site_sp), by = c("Site", "Method"))
+
+
+#plot biomass Sphyrna lewini
+a1 <- ggplot(Sphyrna_lewini, aes(x = Fishing , y = Biomass_site_sp, fill = Method)) +
+  geom_boxplot() + 
+  scale_x_discrete(name = "Zonation") +
+  scale_y_continuous(name = expression(atop("Biomass", "g/500 "*m^2))) +
+  annotate("text", y = max(Sphyrna_lewini$Biomass_site_sp), x = 2, 
+           label = "a) Sphyrna lewini", hjust = 0.5, size = 4) +
+  theme_classic() +
+  theme(axis.text.x = element_text(color = "black"), 
+        axis.text.y = element_text(color = "black"), 
+        legend.position="hide")
+
+#plot density Sphyrna lewini
+a2 <- ggplot(Sphyrna_lewini, aes(x = Fishing, y = N_site_sp, fill = Method)) +
+  geom_boxplot() + 
+  scale_x_discrete(name = "Zonation") +
+  scale_y_continuous(name = expression(atop("Density", "Number of individuals/500 "*m^2))) +
+  theme_classic() +
+  theme(axis.text.x = element_text(color = "black"), 
+        axis.text.y = element_text(color = "black"), 
+        legend.position="hide")
+
+#With ggarrange
+ggarrange(a1, a2, ncol = 1, nrow = 2, common.legend = TRUE, legend = "right", align = "v")
+#Here is it as I want it, but I do not know how to put a box around it
+
+#with grid.arrange
+grid.arrange(a1, a2, ncol = 1, nrow = 2) +
+  grid.rect(width = 1, height = 1, gp = gpar(lwd = 0.5, col = "black", fill = NA))
+
+#When using the sites that are empty in the boxplots, most are empty and therefore there is no actual box. 
+
+#plot biomass Sphyrna lewini without empty sites
+a1 <- ggplot(Biomass_sp %>% filter(ValidName == "Sphyrna lewini"), 
+             aes(x = Fishing , y = Biomass_site_sp, fill = Method)) +
+  geom_boxplot() + 
+  scale_x_discrete(name = "Zonation") +
+  scale_y_continuous(name = expression(atop("Biomass", "g/500 "*m^2))) +
+  annotate("text", y = max(Sphyrna_lewini$Biomass_site_sp), x = 2, 
+           label = "a) Sphyrna lewini", hjust = 0.5, size = 4) +
+  theme_classic() +
+  theme(axis.text.x = element_text(color = "black"), 
+        axis.text.y = element_text(color = "black"), 
+        legend.position="hide")
+
+#plot density Sphyrna lewini without empty sites
+a2 <- ggplot(Density_sp %>% filter(ValidName == "Sphyrna lewini"), 
+             aes(x = Fishing, y = N_site_sp, fill = Method)) +
+  geom_boxplot() + 
+  scale_x_discrete(name = "Zonation") +
+  scale_y_continuous(name = expression(atop("Density", "Number of individuals/500 "*m^2))) +
+  theme_classic() +
+  theme(axis.text.x = element_text(color = "black"), 
+        axis.text.y = element_text(color = "black"), 
+        legend.position="hide")
+
+#With ggarrange
+ggarrange(a1, a2, ncol = 1, nrow = 2, common.legend = TRUE, legend = "right", align = "v")
+#Here is it as I want it, but I do not know how to put a box around it
+
+#with grid.arrange
+grid.arrange(a1, a2, ncol = 1, nrow = 2) +
+  grid.rect(width = 1, height = 1, gp = gpar(lwd = 0.5, col = "black", fill = NA))
+
+#Removing unnecessary variables
+rm(a1, a2, temp, Empty)
+
+
 # Notes --------------------------------------------
 
 #Species richness can be calculated with vegan::specnumber() on the density matrix
