@@ -42,6 +42,33 @@ MapGMR <- ggplot() +
 MapGMR
 
 
+
+# Bioregion map -----------------------------------------------------------
+
+Bioregion <- st_read("Shapefiles/bioregiones.shp") #Bioregions of the GMR
+
+#Making map with bioregions and sampled sites
+MapBio <- ggplot() + 
+  #First we plot the GMR boundary, I have set it to have a transparent fill, but you can change this under 'fill'
+  geom_sf(data = GMR, size = 1, fill = alpha("blue", 0)) + 
+  #We now plot the actual island
+  geom_sf(data = Gal_Isl, size = 0.5, color = "black", fill = "gray80") + 
+  #Finally, we will plot the GMR zones so they appear over the islands contours
+  #We will change the colour of the boundaries by zone type (ZONA)
+  geom_sf(data = Bioregion, aes(color = name), size = 1) +
+  #I will use a colorbrewer palette for the different zones, you can change this to whatever you prefer
+  #I also changed the title of the legend
+  scale_color_brewer(palette = "Dark2", name = "name")+
+  ggtitle("Galapagos Marine Reserve Zoning") + 
+  #Applying a black and white theme to the figure
+  theme_bw()+
+  #Removing grids
+  theme(panel.grid = element_blank())
+#Checking the map looks ok
+MapBio
+
+
+
 # Sites sampled -----------------------------------------------------------
 #Reading data from the sites
 Sites <- openxlsx::read.xlsx("Data/Bacalao_MagicMysteryTour_GPS_Coordinates_Respaldo.xlsx") %>% 
