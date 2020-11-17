@@ -88,6 +88,10 @@ NonFish <- c("Eretmochelys imbricata", "Chelonia mydas", "Zalophus wollebaeki",
 
 #Access to the Fish data set with correct names and a/b variables to calculate biomass
 FishDB <- read_csv("https://raw.githubusercontent.com/lidefi87/MangroveProject_CDF/master/Data/FishDB.csv")
+#Correcting two Max length typos in the database
+FishDB <- FishDB %>% 
+  mutate(MaxLgth_m = ifelse(ValidName == "Mobula birostris" & MaxLgth_m == 0.91, 9.1, MaxLgth_m)) %>% 
+  mutate(MaxLgth_m = ifelse(ValidName == "Taeniurops meyeni" & MaxLgth_m == 0.33, 3.3, MaxLgth_m))
 
 #Loading site keys excel file
 SiteKeys <- openxlsx::read.xlsx("Data/SiteKeys.xlsx")  %>%
@@ -303,6 +307,48 @@ unique(DOVS$Family[!(DOVS$Family %in% UVC$Family)]) #can be deleted after decisi
 DOVS <- DOVS %>% filter(ValidName %in% SpeciesUVC)
 #I suggest that we add the following carnivores: 
 #Lutjanus jordani, Caranx sexfasciatus and Epinephelus labriformis
+
+
+
+# Length check ------------------------------------------------------------
+
+#Checking species against lengths in UVC data
+Length_check_UVC <- UVC %>% #Using data from UVC
+  left_join(FishDB %>% select(ValidName, MaxLgth_m, TrophicCat), #Joining max length and Trophic category
+            by = "ValidName") %>% 
+  mutate(MaxLgth_m = MaxLgth_m*100) %>% #Max length to cm
+  rename(MaxLgth_cm = MaxLgth_m) %>% #renaming column to cm
+  filter(!Length_cm > MaxLgth_cm)
+
+
+TooLarge_UVC <- UVC %>% #Using data from UVC
+  left_join(FishDB %>% select(ValidName, MaxLgth_m, TrophicCat), #Joining max length and Trophic category
+            by = "ValidName") %>% 
+  mutate(MaxLgth_m = MaxLgth_m*100) %>% #Max length to cm
+  rename(MaxLgth_cm = MaxLgth_m) %>% #renaming column to cm
+  filter(Length_cm > MaxLgth_cm) %>% 
+  select(Period, Site, ValidName, Length_cm, N, MaxLgth_cm)
+
+
+#Checking species against lengths in DOVS data
+Length_check_DOVS <- DOVS %>% #Using data from DOVS
+  left_join(FishDB %>% select(ValidName, MaxLgth_m, TrophicCat), #Joining max length and Trophic category
+            by = "ValidName") %>% 
+  mutate(MaxLgth_m = MaxLgth_m*1000) %>% #Max length to cm
+  rename(MaxLgth_mm = MaxLgth_m) %>% #renaming column to cm
+  filter(!Length_mm > MaxLgth_mm)
+
+
+TooLarge_DOVS <- DOVS %>% #Using data from UVC
+  left_join(FishDB %>% select(ValidName, MaxLgth_m, TrophicCat), #Joining max length and Trophic category
+            by = "ValidName") %>% 
+  mutate(MaxLgth_m = MaxLgth_m*1000) %>% #Max length to cm
+  rename(MaxLgth_mm = MaxLgth_m) %>% #renaming column to cm
+  filter(Length_mm > MaxLgth_mm) %>% 
+  select(Period, Site, ValidName, Length_mm, N, MaxLgth_mm, Precision_mm, RMS_mm)
+
+#Remove unnecessary variables
+#
 
 
 # Species richness boxplot ------------------------------------------------
@@ -648,8 +694,11 @@ Biomass_sp_DOVS <- DOVS %>%
   summarise(Gram_500m2 = (Biomass_sp_period/Transect_area)*500, 
             Method, Fishing, SiteCode) %>% 
   #Calculating the biomass of each species per site in g per 500m2 (as average of periods)
-  summarise(Biomass_site_sp = mean(Gram_500m2), 
+  summarise(Gram_site_sp = mean(Gram_500m2), 
             ValidName, Method, Fishing, SiteCode) %>%
+  #Going from g to kg for the biomass
+  mutate(Biomass_site_sp = Gram_site_sp/1000) %>% #Biomass in kg
+  select(-Gram_site_sp) %>% #Removing the Gram_site_sp column
   unique() %>% 
   ungroup()
 
@@ -671,8 +720,11 @@ Biomass_sp_UVC <- UVC %>%
   summarise(Gram_500m2 = (Biomass_sp_period/Transect_area)*500, 
             Method, Fishing, SiteCode) %>% 
   #Calculating the biomass of each species per site in g per 500m2 (as average of periods)
-  summarise(Biomass_site_sp = mean(Gram_500m2), 
+  summarise(Gram_site_sp = mean(Gram_500m2), 
             ValidName, Method, Fishing, SiteCode) %>%
+  #Going from g to kg for the biomass
+  mutate(Biomass_site_sp = Gram_site_sp/1000) %>% #Biomass in kg
+  select(-Gram_site_sp) %>% #Removing the Gram_site_sp column
   unique() %>% 
   ungroup()
 
@@ -694,7 +746,7 @@ EmptySites <- SiteInfo %>%
           mutate(Method = "UVC") %>% 
           filter(!(Site %in% UVC$Site))) %>% 
   mutate(ValidName = "Dummy") %>% 
-  mutate(Biomass_site_sp = 1)
+  mutate(Biomass_site_sp = 0.001)
 #Adding the sites that have no fish to Biomass_sp
 Biomass_sp <- Biomass_sp %>% 
   rbind(EmptySites)
@@ -712,21 +764,28 @@ Bio_mat <- Biomass_sp %>% #Based on biomass calculations for individual species 
   unite(SiteMet, Site, Method, sep = " ") %>% 
   #Making the format right for the matrix
   pivot_wider(names_from = "ValidName", values_from = "Biomass_site_sp") %>% 
-  mutate(Dummy = 1) %>% #Adding dummy species to all sites, to enable dissimilarity calculations later
+  mutate(Dummy = 0.001) %>% #Adding dummy species to all sites, to enable dissimilarity calculations later
   #As I have some empty sites, where it is important to see how the methods UVC and DOVS differ
   column_to_rownames("SiteMet") %>% #Making a column into row names for the matrix
   as.matrix() %>% 
   replace_na(0) #Putting 0 instead of NA, when the species was not observed at a site
 
+#Checking ranges for transformations and no transformation
+range(Bio_mat)
+range(Bio_mat^0.5)
+range(Bio_mat^0.25)
+#I have read online that I should get in the 0-10 range
+#To achieve this I am doing a fourth root transformation
+
 #Checking QQplot for biomass of both methods
-qqnorm(sqrt(sqrt(Biomass_sp$Biomass_site_sp)))
-qqline(sqrt(sqrt(Biomass_sp$Biomass_site_sp)), col = "red")
+qqnorm(Biomass_sp$Biomass_site_sp^0.25)
+qqline(Biomass_sp$Biomass_site_sp^0.25, col = "red")
 #The data is not normally distributed, but transforming the data makes it a little closer to normal distribution
 #I can do the PERMANOVA based on the dissimilarity despite not having normally distributed data
 
 #Applying a 4th root transformation to biomass data - and making a matrix
-Bio_mat <- sqrt(sqrt(Bio_mat))
-#Calculating dissimilarity distance using vegan package, the default is Bray Curtis
+Bio_mat <- Bio_mat^0.25
+#Calculating dissimilarity distance using vegan package, method bray curtis
 Bio_mat_dist <- vegdist(Bio_mat, method = "bray")
 #Create a PCO (Principal Coordinates Analysis) plot
 Bio_mat_pco <- wcmdscale(Bio_mat_dist, eig = TRUE) #returns matrix of scores scaled by eigenvalues
@@ -739,7 +798,6 @@ Bio_mat_pcoa <- pcoa(Bio_mat_dist)
 barplot(Bio_mat_pcoa$values$Relative_eig[1:10])
 #Biplot with arrows
 biplot(Bio_mat_pcoa, Bio_mat)
-biplot(Bio_mat_pcoa, Bio_mat, expand = 2)
 
 #binding PCO coordinates to dataframe
 PCO_biomass <- as.data.frame(Bio_mat_pco$points[,1:2])
@@ -796,14 +854,139 @@ ggplot(PCO_biomass) +
   geom_point(aes(PC1, PC2, color = Island, shape = Method), size = 2) +
   theme_classic()
 
-#Remove unnecessary variables
-rm(PCO_biomass, Bio_mat, Bio_mat_pco, Bio_mat_pcoa)
+
+# Names on arrows in PCO plot --------------------------------------------------
+#Funcktion that computes arrows from a pcoa and a species matrix
+compute_arrows <-  function(Bio_mat_pcoa, Bio_mat) {
+  
+  # Keeping the species that has the largest arrows (from former PCO plot)
+  Bio_mat = Bio_mat[ ,c("Lutjanus argentiventris", "Triaenodon obesus", "Mycteroperca olfax", 
+                        "Carcharhinus limbatus", "Caranx melampygus", "Carcharhinus galapagensis", 
+                        "Sphyrna lewini")]
+  
+  n <- nrow(Bio_mat)
+  points.stand <- scale(Bio_mat_pcoa$vectors)
+  
+  # Compute covariance of variables with all axes
+  S <- cov(Bio_mat, points.stand)
+  
+  # Select only positive eigenvalues
+  pos_eigen = Bio_mat_pcoa$values$Eigenvalues[seq(ncol(S))]
+  
+  # Standardize value of covariance (see Legendre & Legendre 1998)
+  U <- S %*% diag((pos_eigen/(n - 1))^(-0.5))
+  colnames(U) <- colnames(Bio_mat_pcoa$vectors)
+  
+  # Add values of covariances inside object
+  Bio_mat_pcoa$U <- U
+  
+  return(Bio_mat_pcoa)
+}
+
+#computing arrows for species using the function compute_arrows
+species_pcoa_arrows <- compute_arrows(Bio_mat_pcoa, Bio_mat)
+#chaning vectors to data.frame before putting it in ggplot2
+species_pcoa_arrows$vectors <- as.data.frame(species_pcoa_arrows$vectors)
+
+#making arrows smaller, so they fit better in the PCO
+arrows_df <- as.data.frame(species_pcoa_arrows$U/15)
+arrows_df$variable <- rownames(arrows_df)
+
+#Making an anchor for the arrows
+Anchor <- c(0.45,-0.4) #upper right corner
+
+#Constant adjusting the size of vectors
+K <- 1 #not actually necessary, as it is currentlt 1, but good for playing around with the code
+
+#define other coordinates for arrows
+X2 <- (arrows_df$Axis.1 + Anchor[1])*K
+Y2 <- (arrows_df$Axis.2 + Anchor[2])*K
+
+#plotting biomass, method, fishing and arrows for species with largest biomasses
+ggplot(PCO_biomass) + 
+  #Adding ellipse around fishing status
+  stat_ellipse(geom = "polygon", col = "black", alpha = 0.3, 
+               aes(PC1, PC2, col = Fishing, fill = Fishing)) +
+  #Adding color for fishing and shapes for method
+  geom_point(aes(PC1, PC2, color = Fishing, shape = factor(Method)), size = 2.5) + 
+  geom_segment(data = arrows_df, #Adding arrows
+               x = Anchor[1], y = Anchor[2],
+               mapping = aes(xend = X2, yend = Y2),
+               arrow = arrow(length = unit(2, "mm")), #Adding arrow head
+               size = 0.8) +
+  labs(title = "Principal Coordinate Ordination Biomass") + 
+  #Adding arrow labels for species with arrows upwards in plot
+  geom_text(data = arrows_df[1:3,], aes(label = arrows_df$variable[1:3]),
+            size = 4, fontface = "bold",
+            lineheight = 0.6, 
+            x = X2[1:3], y = Y2[1:3], 
+            vjust = -0.8) +
+  #Adding arrow labels for species with arrows downwards in plot
+  geom_text(data = arrows_df[c(4, 6:7),], aes(label = arrows_df$variable[c(4, 6:7)]),
+            size = 4, fontface = "bold",
+            lineheight = 0.6, 
+            x = X2[c(4, 6:7)], y = Y2[c(4, 6:7)], 
+            vjust = 1) +
+  #Adding arrow labels for C. melampygus, so it can be read
+  geom_text(data = arrows_df[5,], aes(label = arrows_df$variable[5]),
+            size = 4, fontface = "bold",
+            lineheight = 0.6, 
+            x = X2[5], y = Y2[5], 
+            vjust = 1.8) +
+  xlim(-0.65, 0.6) +
+  #scale_color_grey() +
+  theme_classic() +
+  #moving legend in plot and making box around it
+  theme(legend.position = c(0.9, 0.87), 
+        legend.box.background = element_rect(size = 0.7, linetype = "solid", colour ="black"), 
+        legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"))
+
+
+#plotting biomass, Bioregion and fishing, along with arrows for species with largest biomasses
+ggplot(PCO_biomass) + 
+  #Adding ellipse around fishing status
+  stat_ellipse(geom = "polygon", col = "black", alpha = 0.3, 
+               aes(PC1, PC2, col = Bioregion, fill = Bioregion)) +
+  #Adding color for fishing and shapes for method
+  geom_point(aes(PC1, PC2, color = Bioregion, shape = factor(Fishing)), size = 2.5) + 
+  geom_segment(data = arrows_df, #Adding arrows
+               x = Anchor[1], y = Anchor[2],
+               mapping = aes(xend = X2, yend = Y2),
+               arrow = arrow(length = unit(2, "mm")), #Adding arrow head
+               size = 0.8) +
+  labs(title = "Principal Coordinate Ordination Biomass") + 
+  #Adding arrow labels for species with arrows upwards in plot
+  geom_text(data = arrows_df[1:3,], aes(label = arrows_df$variable[1:3]),
+            size = 4, fontface = "bold",
+            lineheight = 0.6, 
+            x = X2[1:3], y = Y2[1:3], 
+            vjust = -0.8) +
+  #Adding arrow labels for species with arrows downwards in plot
+  geom_text(data = arrows_df[c(4, 6:7),], aes(label = arrows_df$variable[c(4, 6:7)]),
+            size = 4, fontface = "bold",
+            lineheight = 0.6, 
+            x = X2[c(4, 6:7)], y = Y2[c(4, 6:7)], 
+            vjust = 1) +
+  #Adding arrow labels for C. melampygus, so it can be read
+  geom_text(data = arrows_df[5,], aes(label = arrows_df$variable[5]),
+            size = 4, fontface = "bold",
+            lineheight = 0.6, 
+            x = X2[5], y = Y2[5], 
+            vjust = 1.8) +
+  xlim(-0.86, 0.58) +
+  #scale_color_grey() +
+  theme_classic() +
+  #moving legend in plot and making box around it
+  theme(legend.position = c(0.9, 0.87), 
+        legend.box.background = element_rect(size = 0.7, linetype = "solid", colour ="black"), 
+        legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"))
+
+#remove unnecessary variables
+#rm(compute_arrows, species_pcoa_arrows, arrows_df, Anchor, K, X2, Y2)
+#rm(PCO_biomass, Bio_mat_pco, Bio_mat_pcoa)
 
 
 # PERMANOVA biomass ---------------------------------------------------
-
-#Distance matrix from biomass data
-Dist_mat <- as.matrix(Bio_mat_dist)
 
 #Data frame for PERMANOVA Factors to be tested
 Factors <- Biomass %>% 
@@ -813,41 +996,92 @@ Factors <- Biomass %>%
             by = c("Site", "Method")) %>% 
   left_join(SiteInfo %>% select(Site, Bioregion, Island) %>% unique(), by = "Site")
 
-#One PERMANOVA to test biomass between methods, sites, status (Fishing, open or closed), bioregion and island
-adonis(Dist_mat ~ Method/Fishing + 
-         Method/Gram_500m2_site + 
-         Gram_500m2_site/Fishing + 
-         Gram_500m2_site/Bioregion +
-         Gram_500m2_site/Island,
-       data = Factors, permutations = 9999)
-#I have done it this way because Method is nested within Fishing status (open or closed)
-#Method is also nested within each site, with the site data being biomass data (gram per 500 m2)
-#Site is nested within the Fishing status
-#The biomass (Gram per 500 m2 at each site) of each site is nested within Bioregion and within Island
 
-#Individual Permanovas, I think the right way to do it is to combine them as above
-#Here they are individually
-#PERMANOVA fishing
-adonis(Dist_mat ~ Method/Fishing, data = Factors, permutations = 9999)
-#PERMANOVA biomass
-adonis(Dist_mat ~ Method/Gram_500m2_site, data = Factors, permutations = 9999)
-#PERMANOVA fishing and biomass
-adonis(Dist_mat ~ Gram_500m2_site/Fishing, data = Factors, permutations = 9999)
-#PERMANOVA bioregion and biomass
-adonis(Dist_mat ~ Gram_500m2_site/Bioregion, data = Factors, permutations = 9999)
-#PERMANOVA Island and biomass
-adonis(Dist_mat ~ Gram_500m2_site/Island, data = Factors, permutations = 9999)
+#PERMANOVA Main effects
 
+#PERMANOVA - biomass main effect
+adonis(Bio_mat ~ Method, data = Factors, method = "bray", permutations = 9999)
+#Non-significant.
+
+#PERMANOVA - fishing main effect
+adonis(Bio_mat ~ Fishing, data = Factors, method = "bray", permutations = 9999)
+#Non-significant
+
+#PERMANOVA - biomass in gram main effect
+adonis(Bio_mat ~ Gram_500m2_site, data = Factors, method = "bray", permutations = 9999)
+#Significant, There is a significant difference in biomass (measured in gram) between sites
+
+#PERMANOVA - Bioregion main effect
+adonis(Bio_mat ~ Bioregion, data = Factors, method = "bray", permutations = 9999)
+#Significant, There is a significant difference in biomass (measured in gram) between bioregions
+
+#PERMANOVA - Island main effect
+adonis(Bio_mat ~ Island, data = Factors, method = "bray", permutations = 9999)
+#Significant, There is a significant difference in biomass (measured in gram) between Islands
+
+
+#PERMANOVA interactions
+
+#Univariate PERMANOVA for differences between methods and fishing
+adonis(Bio_mat ~ Method*Fishing, data = Factors, method = "bray", permutations = 9999)
+#Non-significant. 
+#There is no significant difference for the interaction between methods and fishing.
+
+#Univariate PERMANOVA - method and biomass per site
+adonis(Bio_mat ~ Method*Gram_500m2_site, data = Factors, method = "bray", permutations = 9999)
+#No significant interaction. 
+
+#Univariate PERMANOVA - fishing and biomass per site, site is nested within fishing status
+adonis(Bio_mat ~ Gram_500m2_site/Fishing, data = Factors, method = "bray", permutations = 9999)
+#No significant interaction.
+
+#Univariate PERMANOVA - bioregion and biomass per site, site is nested within bioregion
+adonis(Bio_mat ~ Gram_500m2_site/Bioregion, data = Factors, method = "bray", permutations = 9999)
+#No significant interaction.
+
+#Univariate PERMANOVA - Island and biomass per site, site is nested within Island
+adonis(Bio_mat ~ Gram_500m2_site/Island, data = Factors, method = "bray", permutations = 9999)
+#No significant interaction
+
+
+#BETADISPERSION
 
 #Checking for dispersion of groups - Method
 dispersion <- betadisper(Bio_mat_dist, group = Factors$Method)
-permutest(dispersion)
+#Permutation test for betadispersion
+permutest(dispersion) #This is non-significant, therefore: 
+#we cannot find a statistically different dispersion --> the assumption of homogeneity (of dispersion) is met.
 #Plotting dispersion
 plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
 
 #Checking for dispersion of groups - Fishing
 dispersion <- betadisper(Bio_mat_dist, group = Factors$Fishing)
+#Permutation test for betadispersion
 permutest(dispersion)
+#Plotting dispersion
+plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
+
+#Checking for dispersion of groups - biomass per site
+dispersion <- betadisper(Bio_mat_dist, group = Factors$Gram_500m2_site)
+#Permutation test for betadispersion
+permutest(dispersion)
+#we cannot find a statistically different dispersion --> the assumption of homogeneity (of dispersion) is met.
+#Plotting dispersion
+plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
+
+#Checking for dispersion of groups - Bioregion
+dispersion <- betadisper(Bio_mat_dist, group = Factors$Bioregion)
+#Permutation test for betadispersion
+permutest(dispersion) #Significant difference
+#Significant difference in dispersion --> the assumption of homogeneity is NOT met.
+#Plotting dispersion
+plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
+
+#Checking for dispersion of groups - Island
+dispersion <- betadisper(Bio_mat_dist, group = Factors$Island)
+#Permutation test for betadispersion
+permutest(dispersion) #Significant difference
+#Significant difference in dispersion --> the assumption of homogeneity is NOT met.
 #Plotting dispersion
 plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
 
