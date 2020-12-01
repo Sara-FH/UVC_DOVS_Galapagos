@@ -15,6 +15,7 @@ library(chron)
 library(xlsx)
 library(ggplot2)
 library(ape) #For principal coordinates analysis
+library(ggsignif) #Shows level of significance in ggplots
 
 
 # Uploading data ----------------------------------------------------------
@@ -356,7 +357,7 @@ TooLarge_DOVS <- DOVS %>% #Using data from UVC
 #Sites in SiteInfo, that do not have clean data in DOVS and UVC
 unique(SiteInfo$Site[!SiteInfo$Site %in% DOVS$Site]) #No fish in DOVS
 unique(SiteInfo$Site[!SiteInfo$Site %in% UVC$Site]) #No fish in UVC
-#Different sites have dissapeared from the DOVS and UVC data after the cleaning process - removing non-predators. 
+#Different sites have disappeared from the DOVS and UVC data after the cleaning process - removing non-predators. 
 #These sites are kept as empty sites.
 
 #Making data frame for empty periods (no species) in DOVS data
@@ -428,16 +429,33 @@ UVC_richness <- UVC %>%
 #Combining richness for DOVS and UVC
 Richness <- rbind(DOVS_richness, UVC_richness)
 
-#plot species richness
+#Making column for significance comparison
+TempRichness <- Richness %>% 
+  mutate(Comparison = paste(Fishing, Method))
+
+#Plot species richness with significance
 ggplot(Richness, aes(x = Fishing, y = Site_sp_500m2, fill = Method)) +
   geom_boxplot(fatten = 3) +
-  scale_fill_grey(start = 0.1, end = 0.5) +
+  geom_signif(comparisons = list(c("Closed", "Open")), 
+              map_signif_level = TRUE, 
+              test = "wilcox.test", 
+              test.args = list(alternative = "two.sided", var.equal = FALSE, paired = FALSE)) +
+  scale_fill_grey(start = 0.1, end = 0.5) + #For figure of all species, start = 0.1, end = 0.7.
   scale_x_discrete(name = "Zonation") +
   scale_y_continuous(name = "Number of species/500"~m^2) +
   theme_classic()
 
+#plot for significance between methods
+ggplot(TempRichness, aes(x = Comparison, y = Site_sp_500m2, fill = Comparison)) +
+  geom_boxplot(fatten = 3) +
+  geom_signif(comparisons = list(c("Closed DOVS", "Closed UVC"), c("Open DOVS", "Open UVC")), 
+              map_signif_level = TRUE, 
+              test = "wilcox.test", 
+              test.args = list(alternative = "two.sided", var.equal = FALSE, paired = FALSE)) +
+  theme_classic()
+
 #Deleting variables that are no longer needed
-rm(DOVS_richness, UVC_richness)
+rm(DOVS_richness, UVC_richness, TempRichness)
 
 
 # Density boxplot ---------------------------------------------------------
@@ -477,12 +495,31 @@ UVC_density <- UVC %>%
 #Combining density for DOVS and UVC
 Density <- rbind(DOVS_density, UVC_density)
 
-#plot species density
+#Making column for significance comparison
+TempDensity <- Density %>% 
+  mutate(Comparison = paste(Fishing, Method))
+
+#Plot species richness with significance
 ggplot(Density, aes(x = Fishing, y = N_site_500m2, fill = Method)) +
   geom_boxplot(fatten = 3) +
+  geom_signif(comparisons = list(c("Closed", "Open")), 
+              map_signif_level = TRUE, 
+              test = "wilcox.test",
+              test.args = list(alternative = "two.sided", var.equal = FALSE, paired = FALSE)) +
   scale_fill_grey(start = 0.1, end = 0.5) +
   scale_x_discrete(name = "Zonation") +
   scale_y_continuous(name = "Number of individuals/500"~m^2) +
+  theme_classic()
+#The outlier is Genovesa norte DOVS, this is due to a lot of Lutjanus argentiventris
+#There are also L. argentiventris in the UVC data, but not nearly as many. 
+
+#plot for significance between methods
+ggplot(TempDensity, aes(x = Comparison, y = N_site_500m2, fill = Comparison)) +
+  geom_boxplot(fatten = 3) +
+  geom_signif(comparisons = list(c("Closed DOVS", "Closed UVC"), c("Open DOVS", "Open UVC")), 
+              map_signif_level = TRUE, 
+              test = "wilcox.test",
+              test.args = list(alternative = "two.sided", var.equal = FALSE, paired = FALSE)) +
   theme_classic()
 
 #plot species density 0-30 individuals
@@ -492,10 +529,15 @@ ggplot(Density, aes(x = Fishing, y = N_site_500m2, fill = Method)) +
   scale_x_discrete(name = "Zonation") +
   scale_y_continuous(name = "Number of individuals/500"~m^2, 
                      limits = c(0,30)) +
+  geom_signif(comparisons = list(c("Closed", "Open")), 
+              map_signif_level = TRUE, 
+              test = "wilcox.test",
+              test.args = list(alternative = "two.sided", var.equal = FALSE, paired = FALSE),
+              y_position = 30) +
   theme_classic()
 
 #Deleting variables that are no longer needed
-rm(DOVS_density, UVC_density)
+rm(DOVS_density, UVC_density, TempDensity)
 
 
 # Biomass calculations DOVS ----------------------------------------------------
@@ -635,38 +677,75 @@ rm(EmptyPeriods_DOVS, EmptyPeriods_UVC)
 #Combining biomass data for DOVS and UVC
 Biomass <- rbind(Biomass_DOVS, Biomass_UVC)
 
+#Making column for significance comparison
+TempBiomass <- Biomass %>% 
+  mutate(Comparison = paste(Fishing, Method))
+
 #plot biomass in g per 500m2
 ggplot(Biomass, aes(x = Fishing, y = Gram_500m2_site, fill = Method)) +
   geom_boxplot() + 
+  geom_signif(comparisons = list(c("Closed", "Open")), 
+              map_signif_level = TRUE, 
+              test = "wilcox.test",
+              test.args = list(alternative = "two.sided", var.equal = FALSE, paired = FALSE)) +
   scale_x_discrete(name = "Zonation") +
   scale_y_continuous(name = "g/500"~m^2) +
   theme_classic()
+#Significant p < 0.05 for *
+#The three outliers in Closed DOVS are: Al Arco (Darwin), Arrecife Antiguo (Darwin), Shark Bay (Wolf)
+#The three top in UVC are: Al Arco (Darwin), Shark Bay (Wolf), Derrumbe (Wolf)
 
-#plot biomass in g per 500m2 below 50,000 g
+#plot for significance between methods
+ggplot(TempBiomass, aes(x = Comparison, y = Gram_500m2_site, fill = Comparison)) +
+  geom_boxplot(fatten = 3) +
+  geom_signif(comparisons = list(c("Closed DOVS", "Closed UVC"), c("Open DOVS", "Open UVC")), 
+              map_signif_level = TRUE, 
+              test = "wilcox.test",
+              test.args = list(alternative = "two.sided", var.equal = FALSE, paired = FALSE)) +
+  theme_classic()
+
+#plot biomass in g per 500m2 below 450,000 g
 ggplot(Biomass, aes(x = Fishing, y = Gram_500m2_site, fill = Method)) +
   geom_boxplot() + 
   scale_x_discrete(name = "Zonation") +
   scale_y_continuous(name = "g/500"~m^2, 
-                     limits = c(0,50000)) +
+                     limits = c(0,450000)) +
+  geom_signif(comparisons = list(c("Closed", "Open")), 
+              map_signif_level = TRUE, 
+              test = "wilcox.test",
+              test.args = list(alternative = "two.sided", var.equal = FALSE, paired = FALSE),
+              y_position = 450000) +
   theme_classic()
+#NS = Not Significant
 
 #plot biomass in kg per 500m2
 ggplot(Biomass, aes(x = Fishing, y = KG_500m2_site, fill = Method)) +
   geom_boxplot() + 
+  geom_signif(comparisons = list(c("Closed", "Open")), 
+              map_signif_level = TRUE, 
+              test = "wilcox.test",
+              test.args = list(alternative = "two.sided", var.equal = FALSE, paired = FALSE)) +
   scale_x_discrete(name = "Zonation") +
   scale_y_continuous(name = "kg/500"~m^2) +
   theme_classic()
+#Significant p < 0.05 for *
 
-#plot biomass in kg per 500m2 below 100 kg
+#plot biomass in kg per 500m2 below 1000 kg
 ggplot(Biomass, aes(x = Fishing, y = KG_500m2_site, fill = Method)) +
   geom_boxplot() + 
   scale_x_discrete(name = "Zonation") +
   scale_y_continuous(name = "kg/500"~m^2, 
-                     limits = c(0,100)) +
+                     limits = c(0,1000)) +
+  geom_signif(comparisons = list(c("Closed", "Open")), 
+              map_signif_level = TRUE, 
+              test = "wilcox.test",
+              test.args = list(alternative = "two.sided", var.equal = FALSE, paired = FALSE),
+              y_position = 1000) +
   theme_classic()
+#NS = Not Significant
 
 #Deleting variables that are no longer needed
-rm(Biomass_DOVS, Biomass_UVC)
+rm(Biomass_DOVS, Biomass_UVC, TempBiomass)
 
 
 # Biomass calculations for PCO ---------------------------------------------
@@ -787,7 +866,7 @@ qqline(Biomass_sp$Biomass_site_sp^0.25, col = "red")
 Bio_mat <- Bio_mat^0.25
 #Calculating dissimilarity distance using vegan package, method bray curtis
 Bio_mat_dist <- vegdist(Bio_mat, method = "bray")
-#Create a PCO (Principal Coordinates Analysis) plot
+#Create a weighted Principal Coordinates Analysis plot
 Bio_mat_pco <- wcmdscale(Bio_mat_dist, eig = TRUE) #returns matrix of scores scaled by eigenvalues
 #Show plot
 plot(Bio_mat_pco, type = "points") #Add type points to remove labels
@@ -798,6 +877,8 @@ Bio_mat_pcoa <- pcoa(Bio_mat_dist)
 barplot(Bio_mat_pcoa$values$Relative_eig[1:10])
 #Biplot with arrows
 biplot(Bio_mat_pcoa, Bio_mat)
+#The principal coordinates analysis from pcoa function from the Ape package is similar to the 
+#weighted principal coordinates analysis plot from wcmdscale 
 
 #binding PCO coordinates to dataframe
 PCO_biomass <- as.data.frame(Bio_mat_pco$points[,1:2])
@@ -905,10 +986,10 @@ Y2 <- (arrows_df$Axis.2 + Anchor[2])*K
 #plotting biomass, method, fishing and arrows for species with largest biomasses
 ggplot(PCO_biomass) + 
   #Adding ellipse around fishing status
-  stat_ellipse(geom = "polygon", col = "black", alpha = 0.3, 
-               aes(PC1, PC2, col = Fishing, fill = Fishing)) +
+  #stat_ellipse(geom = "polygon", col = "black", alpha = 0.3, 
+  #             aes(PC1, PC2, col = Fishing, fill = Fishing)) +
   #Adding color for fishing and shapes for method
-  geom_point(aes(PC1, PC2, color = Fishing, shape = factor(Method)), size = 2.5) + 
+  geom_point(aes(PC1, PC2, color = Fishing, shape = Method), size = 2.5) + 
   geom_segment(data = arrows_df, #Adding arrows
                x = Anchor[1], y = Anchor[2],
                mapping = aes(xend = X2, yend = Y2),
@@ -934,7 +1015,7 @@ ggplot(PCO_biomass) +
             x = X2[5], y = Y2[5], 
             vjust = 1.8) +
   xlim(-0.65, 0.6) +
-  #scale_color_grey() +
+  scale_color_grey() +
   theme_classic() +
   #moving legend in plot and making box around it
   theme(legend.position = c(0.9, 0.87), 
@@ -945,10 +1026,10 @@ ggplot(PCO_biomass) +
 #plotting biomass, Bioregion and fishing, along with arrows for species with largest biomasses
 ggplot(PCO_biomass) + 
   #Adding ellipse around fishing status
-  stat_ellipse(geom = "polygon", col = "black", alpha = 0.3, 
-               aes(PC1, PC2, col = Bioregion, fill = Bioregion)) +
+  #stat_ellipse(geom = "polygon", col = "black", alpha = 0.3, 
+  #             aes(PC1, PC2, col = Bioregion, fill = Bioregion)) +
   #Adding color for fishing and shapes for method
-  geom_point(aes(PC1, PC2, color = Bioregion, shape = factor(Fishing)), size = 2.5) + 
+  geom_point(aes(PC1, PC2, color = Bioregion, shape = Fishing), size = 2.5) + 
   geom_segment(data = arrows_df, #Adding arrows
                x = Anchor[1], y = Anchor[2],
                mapping = aes(xend = X2, yend = Y2),
@@ -982,8 +1063,8 @@ ggplot(PCO_biomass) +
         legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"))
 
 #remove unnecessary variables
-#rm(compute_arrows, species_pcoa_arrows, arrows_df, Anchor, K, X2, Y2)
-#rm(PCO_biomass, Bio_mat_pco, Bio_mat_pcoa)
+rm(compute_arrows, species_pcoa_arrows, arrows_df, Anchor, K, X2, Y2)
+rm(PCO_biomass, Bio_mat_pco, Bio_mat_pcoa)
 
 
 # PERMANOVA biomass ---------------------------------------------------
@@ -1005,6 +1086,10 @@ adonis(Bio_mat ~ Method, data = Factors, method = "bray", permutations = 9999)
 
 #PERMANOVA - fishing main effect
 adonis(Bio_mat ~ Fishing, data = Factors, method = "bray", permutations = 9999)
+#Non-significant
+
+#PERMANOVA - site main effect
+adonis(Bio_mat ~ Site, data = Factors, method = "bray", permutations = 9999)
 #Non-significant
 
 #PERMANOVA - biomass in gram main effect
@@ -1090,7 +1175,7 @@ permutest(dispersion, permutations = 9999) #Significant difference
 plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
 
 #Removing unnecessary variables
-rm(dispersion, Dist_mat, Bio_mat, Bio_mat_dist)
+rm(dispersion, Dist_mat, Bio_mat_dist)
 
 
 # PCO plot for density ---------------------------------------------------------
@@ -1283,7 +1368,7 @@ arrows_df <- as.data.frame(species_pcoa_arrows$U/15)
 arrows_df$variable <- rownames(arrows_df)
 
 #Making an anchor for the arrows
-Anchor <- c(0.7, 0.0) #upper right corner
+Anchor <- c(0.53, 0.15) 
 
 #Constant adjusting the size of vectors
 K <- 1 #not actually necessary, as it is currentlt 1, but good for playing around with the code
@@ -1295,16 +1380,16 @@ Y2 <- (arrows_df$Axis.2 + Anchor[2])*K
 #plotting biomass, method, fishing and arrows for species with largest biomasses
 ggplot(PCO_density) + 
   #Adding ellipse around fishing status
-  stat_ellipse(geom = "polygon", col = "black", alpha = 0.3, 
-               aes(PC1, PC2, col = Fishing, fill = Fishing)) +
+  #stat_ellipse(geom = "polygon", col = "black", alpha = 0.3, 
+  #             aes(PC1, PC2, col = Fishing, fill = Fishing)) +
   #Adding color for fishing and shapes for method
-  geom_point(aes(PC1, PC2, color = Fishing, shape = factor(Method)), size = 2.5) + 
+  geom_point(aes(PC1, PC2, color = Fishing, shape = Method), size = 2.5) + 
   geom_segment(data = arrows_df, #Adding arrows
                x = Anchor[1], y = Anchor[2],
                mapping = aes(xend = X2, yend = Y2),
                arrow = arrow(length = unit(2, "mm")), #Adding arrow head
                size = 0.8) +
-  labs(title = "Principal Coordinate Ordination Biomass") + 
+  labs(title = "Principal Coordinate Ordination Density") + 
   #Adding arrow labels for species with arrows upwards in plot
   geom_text(data = arrows_df[c(1:3,5),], aes(label = arrows_df$variable[c(1:3,5)]),
             size = 4, fontface = "bold",
@@ -1329,7 +1414,63 @@ ggplot(PCO_density) +
             lineheight = 0.6, 
             x = X2[7], y = Y2[7], 
             vjust = 1.8) +
-  xlim(-0.55, 0.9) +
+  xlim(-0.55, 1.1) +
+  scale_color_grey() +
+  theme_classic() +
+  #moving legend in plot and making box around it
+  theme(legend.position = c(0.9, 0.87), 
+        legend.box.background = element_rect(size = 0.7, linetype = "solid", colour ="black"), 
+        legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"))
+
+
+#adjusting anchor for the following plot
+Anchor <- c(0.55, 0.07) 
+
+#Constant adjusting the size of vectors
+K <- 1 #not actually necessary, as it is currently 1, but good for playing around with the code
+
+#define other coordinates for arrows
+X2 <- (arrows_df$Axis.1 + Anchor[1])*K
+Y2 <- (arrows_df$Axis.2 + Anchor[2])*K
+
+#plotting biomass, Bioregion and fishing, along with arrows for species with largest biomasses
+ggplot(PCO_density) + 
+  #Adding ellipse around fishing status
+  #stat_ellipse(geom = "polygon", col = "black", alpha = 0.3, 
+  #             aes(PC1, PC2, col = Bioregion, fill = Bioregion)) +
+  #Adding color for fishing and shapes for method
+  geom_point(aes(PC1, PC2, color = Bioregion, shape = Fishing), size = 2.5) + 
+  geom_segment(data = arrows_df, #Adding arrows
+               x = Anchor[1], y = Anchor[2],
+               mapping = aes(xend = X2, yend = Y2),
+               arrow = arrow(length = unit(2, "mm")), #Adding arrow head
+               size = 0.8) +
+  labs(title = "Principal Coordinate Ordination Density") + 
+  #Adding arrow labels for species with arrows upwards in plot
+  geom_text(data = arrows_df[c(1:3,5),], aes(label = arrows_df$variable[c(1:3,5)]),
+            size = 4, fontface = "bold",
+            lineheight = 0.6, 
+            x = X2[c(1:3,5)], y = Y2[c(1:3,5)], 
+            vjust = -0.8) +
+  #Adding arrow labels for species with arrows upwards in plot
+  geom_text(data = arrows_df[4,], aes(label = arrows_df$variable[4]),
+            size = 4, fontface = "bold",
+            lineheight = 0.6, 
+            x = X2[4], y = Y2[4], 
+            vjust = -0.4) +
+  #Adding arrow labels for species with arrows downwards in plot
+  geom_text(data = arrows_df[6,], aes(label = arrows_df$variable[6]),
+            size = 4, fontface = "bold",
+            lineheight = 0.6, 
+            x = X2[6], y = Y2[6], 
+            vjust = 1) +
+  #Adding arrow labels for C. melampygus, so it can be read
+  geom_text(data = arrows_df[7,], aes(label = arrows_df$variable[7]),
+            size = 4, fontface = "bold",
+            lineheight = 0.6, 
+            x = X2[7], y = Y2[7], 
+            vjust = 1.8) +
+  xlim(-0.55, 1.12) +
   #scale_color_grey() +
   theme_classic() +
   #moving legend in plot and making box around it
@@ -1337,6 +1478,16 @@ ggplot(PCO_density) +
         legend.box.background = element_rect(size = 0.7, linetype = "solid", colour ="black"), 
         legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"))
 
+
+#adjusting anchor for the following plot
+Anchor <- c(0.55, 0.07) 
+
+#Constant adjusting the size of vectors
+K <- 1 #not actually necessary, as it is currently 1, but good for playing around with the code
+
+#define other coordinates for arrows
+X2 <- (arrows_df$Axis.1 + Anchor[1])*K
+Y2 <- (arrows_df$Axis.2 + Anchor[2])*K
 
 #plotting biomass, Bioregion and fishing, along with arrows for species with largest biomasses
 ggplot(PCO_density) + 
@@ -1344,13 +1495,13 @@ ggplot(PCO_density) +
   stat_ellipse(geom = "polygon", col = "black", alpha = 0.3, 
                aes(PC1, PC2, col = Bioregion, fill = Bioregion)) +
   #Adding color for fishing and shapes for method
-  geom_point(aes(PC1, PC2, color = Fishing, shape = factor(Method)), size = 2.5) + 
+  geom_point(aes(PC1, PC2, color = Bioregion, shape = Fishing), size = 2.5) + 
   geom_segment(data = arrows_df, #Adding arrows
                x = Anchor[1], y = Anchor[2],
                mapping = aes(xend = X2, yend = Y2),
                arrow = arrow(length = unit(2, "mm")), #Adding arrow head
                size = 0.8) +
-  labs(title = "Principal Coordinate Ordination Biomass") + 
+  labs(title = "Principal Coordinate Ordination Density") + 
   #Adding arrow labels for species with arrows upwards in plot
   geom_text(data = arrows_df[c(1:3,5),], aes(label = arrows_df$variable[c(1:3,5)]),
             size = 4, fontface = "bold",
@@ -1375,7 +1526,7 @@ ggplot(PCO_density) +
             lineheight = 0.6, 
             x = X2[7], y = Y2[7], 
             vjust = 1.8) +
-  xlim(-0.8, 0.9) +
+  xlim(-0.8, 1.15) +
   #scale_color_grey() +
   theme_classic() +
   #moving legend in plot and making box around it
@@ -1383,9 +1534,10 @@ ggplot(PCO_density) +
         legend.box.background = element_rect(size = 0.7, linetype = "solid", colour ="black"), 
         legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"))
 
+
 #remove unnecessary variables
-#rm(compute_arrows, species_pcoa_arrows, arrows_df, Anchor, K, X2, Y2)
-#rm(PCO_density, Den_mat_pco, Den_mat_pcoa)
+rm(compute_arrows, species_pcoa_arrows, arrows_df, Anchor, K, X2, Y2)
+rm(PCO_density, Den_mat_pco, Den_mat_pcoa)
 
 
 # PERMANOVA density -------------------------------------------------------
@@ -1400,6 +1552,10 @@ adonis(Den_mat ~ Method, data = Factors, method = "bray", permutations = 9999)
 adonis(Den_mat ~ Fishing, data = Factors, method = "bray", permutations = 9999)
 #Significant when it comes to fishing status p < 0.05
 #Significant difference between fishing status when it comes to number of individuals
+
+#PERMANOVA - site main effect
+adonis(Den_mat ~ Site, data = Factors, method = "bray", permutations = 9999)
+#Non-significant.
 
 #PERMANOVA - biomass in gram main effect
 adonis(Den_mat ~ Gram_500m2_site, data = Factors, method = "bray", permutations = 9999)
@@ -1533,7 +1689,7 @@ adonis(Den_mat ~ Site_sp_500m2/Island, data = Factors, method = "bray", permutat
 #The dispersion for the PERMANOVA for species richness will be the same as for density, 
 #because the same distance matrix is used. 
 
-#The only one different is: 
+#The only variable that is different is species richness: 
 
 #Checking for dispersion of groups - species richness per site
 dispersion <- betadisper(Den_mat_dist, group = Factors$Site_sp_500m2)
@@ -1546,6 +1702,50 @@ plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
 
 #Removing unnecessary variables
 rm(dispersion, Dist_mat, Den_mat_dist, Factors)
+
+
+# PERMANOVA, site as factor -----------------------------------------------
+
+#PERMANOVA like in the Mediterranean paper, with site being a factor (site names)
+
+#PERMANOVA interactions Biomass matrix
+
+#Univariate PERMANOVA - method and biomass per site
+adonis(Bio_mat ~ Method*Site, data = Factors, method = "bray", permutations = 9999)
+#No significant interaction.
+
+#Univariate PERMANOVA - fishing and biomass per site, site is nested within fishing status
+adonis(Bio_mat ~ Site/Fishing, data = Factors, method = "bray", permutations = 9999)
+#No significant interaction.
+
+#Univariate PERMANOVA - bioregion and biomass per site, site is nested within bioregion
+adonis(Bio_mat ~ Site/Bioregion, data = Factors, method = "bray", permutations = 9999)
+#No significant interaction.
+
+#Univariate PERMANOVA - Island and biomass per site, site is nested within Island
+adonis(Bio_mat ~ Site/Island, data = Factors, method = "bray", permutations = 9999)
+#No significant interaction
+
+
+
+#PERMANOVA interactions Density matrix
+
+#Univariate PERMANOVA - method and site
+adonis(Den_mat ~ Method*Site, data = Factors, method = "bray", permutations = 9999)
+#No significant interaction. 
+
+
+#Univariate PERMANOVA - fishing and site, site is nested within fishing status
+adonis(Den_mat ~ Site/Fishing, data = Factors, method = "bray", permutations = 9999)
+#No significant interaction.
+
+#Univariate PERMANOVA - bioregion and site, site is nested within bioregion
+adonis(Den_mat ~ Site/Bioregion, data = Factors, method = "bray", permutations = 9999)
+#No significant interaction..
+
+#Univariate PERMANOVA - Island and site, site is nested within Island
+adonis(Den_mat ~ Site/Island, data = Factors, method = "bray", permutations = 9999)
+#No significant interaction.
 
 
 # STANDARDISATIONS --------------------------------------------------------
@@ -1948,143 +2148,29 @@ biplot(Den_mat_pcoa, Den_mat, expand = 30)
 rm(Den_mat, Den_mat_pco, Den_mat_pcoa, Den_mat_dist)
 
 
+# Notes about code and plots ----------------------------------------------
+
+#Boxplots, currently grey colored boxplots are using this code: 
+#Plot species richness with significance
+ggplot(Richness, aes(x = Fishing, y = Site_sp_500m2, fill = Method)) +
+  geom_boxplot(fatten = 3) +
+  geom_signif(comparisons = list(c("Closed", "Open")), 
+              map_signif_level = TRUE, 
+              test = "wilcox.test", 
+              test.args = list(alternative = "two.sided", var.equal = FALSE, paired = FALSE)) +
+  scale_fill_grey(start = 0.1, end = 0.5) + #For figure of all species, start = 0.1, end = 0.7.
+  scale_x_discrete(name = "Zonation") +
+  scale_y_continuous(name = "Number of species/500"~m^2) +
+  theme_classic()
+#However, the figure of all species, as mentioned in the comment, is slightly lighter in the colors, 
+#so this figure uses: 
+#scale_fill_grey(start = 0.1, end = 0.7)
+
 # Extra tables and figures ------------------------------------------------
-#Species list for the study
+#Species list for the study - all the species are present in the UVC data
+#This is because the species from the DOVS data that are not in UVC have been removed.
 Specieslist <- UVC %>% select(Family, Genus, ValidName) %>% unique()
 
 rm(Specieslist)
-
-
-# Figure of biomass and density of individual species ---------------------
-
-library(gridExtra)
-library(ggpubr) #ggarrange
-library(grid) #grid.arrange
-
-#Making variable for Sphyrna lewini biomass
-Sphyrna_lewini <- Biomass_sp %>% 
-  filter(ValidName == "Sphyrna lewini")
-
-#Making data frame for empty periods (no species = no biomass) in DOVS data
-Empty <- Biomass_sp %>% 
-  select(Site, Method, Fishing, SiteCode) %>% 
-  mutate(All_site_method = paste(Site, Method, sep = " ")) %>% 
-  distinct() %>% 
-  left_join(Sphyrna_lewini %>% 
-              select(Site, Method) %>% 
-              mutate(Site_method = paste(Site, Method, sep = " ")) %>% 
-              distinct(), 
-            by = c("Site", "Method")) %>% 
-  #Filter the sites with methods that are empty for S. lewini
-  filter(!All_site_method %in% Site_method) %>% 
-  select(-c(All_site_method, Site_method)) %>% #Removing the two columns that are no longer needed
-  mutate(Biomass_site_sp = 0) %>% #Adding empty biomass column
-  mutate(ValidName = "Sphyrna lewini") #Adding column with species name
-
-#Binding to empty sites to biomass data
-Sphyrna_lewini <- Sphyrna_lewini %>% 
-  rbind(Empty)
-
-#Making temporary variable for Sphyrna lewini density
-temp <- Density_sp %>% 
-  filter(ValidName == "Sphyrna lewini")
-
-#Making data frame for empty periods (no species = no biomass) in DOVS data
-#Remember that temp currently is the sphyrna lewini density
-Empty <- Density_sp %>% 
-  select(Site, Method, Fishing, SiteCode) %>% 
-  mutate(All_site_method = paste(Site, Method, sep = " ")) %>% 
-  distinct() %>% 
-  left_join(temp %>% 
-              select(Site, Method) %>% 
-              mutate(Site_method = paste(Site, Method, sep = " ")) %>% 
-              distinct(), 
-            by = c("Site", "Method")) %>% 
-  #Filter the sites with methods that are empty for S. lewini
-  filter(!All_site_method %in% Site_method) %>% 
-  select(-c(All_site_method, Site_method)) %>% #Removing the two columns that are no longer needed
-  mutate(N_site_sp = 0) %>% #Adding empty biomass column
-  mutate(ValidName = "Sphyrna lewini") #Adding column with species name
-
-#Combine density data for Sphyrna lewini
-temp <- temp %>% 
-  rbind(Empty)
-
-#Binding to empty sites to biomass data
-Sphyrna_lewini <- Sphyrna_lewini %>% 
-  left_join(temp %>% select(Site, Method, N_site_sp), by = c("Site", "Method"))
-
-
-#plot biomass Sphyrna lewini
-a1 <- ggplot(Sphyrna_lewini, aes(x = Fishing , y = Biomass_site_sp, fill = Method)) +
-  geom_boxplot() + 
-  scale_x_discrete(name = "Zonation") +
-  scale_y_continuous(name = expression(atop("Biomass", "g/500 "*m^2))) +
-  annotate("text", y = max(Sphyrna_lewini$Biomass_site_sp), x = 2, 
-           label = "a) Sphyrna lewini", hjust = 0.5, size = 4) +
-  theme_classic() +
-  theme(axis.text.x = element_text(color = "black"), 
-        axis.text.y = element_text(color = "black"), 
-        legend.position="hide")
-
-#plot density Sphyrna lewini
-a2 <- ggplot(Sphyrna_lewini, aes(x = Fishing, y = N_site_sp, fill = Method)) +
-  geom_boxplot() + 
-  scale_x_discrete(name = "Zonation") +
-  scale_y_continuous(name = expression(atop("Density", "Number of individuals/500 "*m^2))) +
-  theme_classic() +
-  theme(axis.text.x = element_text(color = "black"), 
-        axis.text.y = element_text(color = "black"), 
-        legend.position="hide")
-
-#With ggarrange
-ggarrange(a1, a2, ncol = 1, nrow = 2, common.legend = TRUE, legend = "right", align = "v")
-#Here is it as I want it, but I do not know how to put a box around it
-
-#with grid.arrange
-grid.arrange(a1, a2, ncol = 1, nrow = 2) +
-  grid.rect(width = 1, height = 1, gp = gpar(lwd = 0.5, col = "black", fill = NA))
-
-#When using the sites that are empty in the boxplots, most are empty and therefore there is no actual box. 
-
-#plot biomass Sphyrna lewini without empty sites
-a1 <- ggplot(Biomass_sp %>% filter(ValidName == "Sphyrna lewini"), 
-             aes(x = Fishing , y = Biomass_site_sp, fill = Method)) +
-  geom_boxplot() + 
-  scale_x_discrete(name = "Zonation") +
-  scale_y_continuous(name = expression(atop("Biomass", "g/500 "*m^2))) +
-  annotate("text", y = max(Sphyrna_lewini$Biomass_site_sp), x = 2, 
-           label = "a) Sphyrna lewini", hjust = 0.5, size = 4) +
-  theme_classic() +
-  theme(axis.text.x = element_text(color = "black"), 
-        axis.text.y = element_text(color = "black"), 
-        legend.position="hide")
-
-#plot density Sphyrna lewini without empty sites
-a2 <- ggplot(Density_sp %>% filter(ValidName == "Sphyrna lewini"), 
-             aes(x = Fishing, y = N_site_sp, fill = Method)) +
-  geom_boxplot() + 
-  scale_x_discrete(name = "Zonation") +
-  scale_y_continuous(name = expression(atop("Density", "Number of individuals/500 "*m^2))) +
-  theme_classic() +
-  theme(axis.text.x = element_text(color = "black"), 
-        axis.text.y = element_text(color = "black"), 
-        legend.position="hide")
-
-#With ggarrange
-ggarrange(a1, a2, ncol = 1, nrow = 2, common.legend = TRUE, legend = "right", align = "v")
-#Here is it as I want it, but I do not know how to put a box around it
-
-#with grid.arrange
-grid.arrange(a1, a2, ncol = 1, nrow = 2) +
-  grid.rect(width = 1, height = 1, gp = gpar(lwd = 0.5, col = "black", fill = NA))
-
-#Removing unnecessary variables
-rm(a1, a2, temp, Empty)
-
-
-
-
-
 
 
