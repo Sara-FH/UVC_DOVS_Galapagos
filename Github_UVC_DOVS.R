@@ -340,16 +340,16 @@ Length_check_DOVS <- DOVS %>% #Using data from DOVS
   filter(!Length_mm > MaxLgth_mm)
 
 
-TooLarge_DOVS <- DOVS %>% #Using data from UVC
+TooLarge_DOVS <- DOVS %>% #Using data from DOVS
   left_join(FishDB %>% select(ValidName, MaxLgth_m, TrophicCat), #Joining max length and Trophic category
             by = "ValidName") %>% 
-  mutate(MaxLgth_m = MaxLgth_m*1000) %>% #Max length to cm
-  rename(MaxLgth_mm = MaxLgth_m) %>% #renaming column to cm
+  mutate(MaxLgth_m = MaxLgth_m*1000) %>% #Max length to mm
+  rename(MaxLgth_mm = MaxLgth_m) %>% #renaming column to mm
   filter(Length_mm > MaxLgth_mm) %>% 
   select(Period, Site, ValidName, Length_mm, N, MaxLgth_mm, Precision_mm, RMS_mm)
 
 #Remove unnecessary variables
-#
+rm(Length_check_DOVS, Length_check_UVC, TooLarge_DOVS, TooLarge_UVC)
 
 
 # Species richness boxplot ------------------------------------------------
