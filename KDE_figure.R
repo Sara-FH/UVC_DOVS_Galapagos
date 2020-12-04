@@ -323,3 +323,14 @@ ggarrange(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o,
 #This does not work
 #I think it has something to do with the kde.compare function not being saved as a plot in the letters
 
+
+
+
+# Remove variables --------------------------------------------------------
+
+rm(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o)
+rm(Aetobatus_laticeps, Caranx_lugubris, Caranx_melampygus, Carcharhinus_galapagensis, 
+   Carcharhinus_limbatus, Dermatolepis_dermatolepis, Hoplopagrus_guentherii, 
+   Hypanus_dipterurus, Lutjanus_argentiventris, Lutjanus_novemfasciatus, 
+   Mycteroperca_olfax, Paralabrax_albomaculatus, Seriola_rivoliana, 
+   Triaenodon_obesus)
