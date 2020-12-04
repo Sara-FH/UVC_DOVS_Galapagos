@@ -237,6 +237,11 @@ Triaenodon_obesus <- KDE_all %>% filter(ValidName == "Triaenodon obesus")
 #Making KDE's for species of interest
 
 #Sphyrna_lewini
+kde.compare(length = Sphyrna_lewini$Length, group = Sphyrna_lewini$Method, 
+            align = 'no', nboot = 500, xlab = 'Fish Length (mm)', ylab = 'Probability Density',
+            main = 'Sphyrna lewini') #It works when I do not define them
+#But then how can I arrange them in one big plot?
+
 a <- kde.compare(length = Sphyrna_lewini$Length, group = Sphyrna_lewini$Method, 
             align = 'no', nboot = 500, xlab = 'Fish Length (mm)', ylab = 'Probability Density',
             main = 'Sphyrna lewini')
@@ -310,10 +315,11 @@ n
 o <- kde.compare(length = Triaenodon_obesus$Length, group = Triaenodon_obesus$Method, 
             align = 'no', nboot = 500, xlab = 'Fish Length (mm)', ylab = 'Probability Density',
             main = 'Triaenodon obesus')
-plot(o)
+o
 
 #Species of interest KDE one figure
 ggarrange(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, 
           ncol = 3, nrow = 5)
-
+#This does not work
+#I think it has something to do with the kde.compare function not being saved as a plot in the letters
 
