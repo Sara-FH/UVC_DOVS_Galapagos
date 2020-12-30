@@ -72,7 +72,7 @@ Sphyrna_lewini <- Sphyrna_lewini %>%
 # Sphyrna lewini (a) ------------------------------------------------------
 
 #plot biomass Sphyrna lewini
-a1 <- ggplot(Sphyrna_lewini, aes(x = Fishing, y = Biomass_site_sp, fill = Method)) +
+a1 <- ggplot(Sphyrna_lewini, aes(x = Fishing, y = Biomass_site_sp, fill = Method, size = 3)) +
   geom_boxplot(width = 0.8) +  
   geom_signif(test = "wilcox.test", 
               comparisons = list(c("Closed", "Open")), 
