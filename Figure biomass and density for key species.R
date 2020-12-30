@@ -14,6 +14,120 @@
 
 library(ggpubr) #ggarrange
 
+#Option 1 to select species of interest
+# spInt <- c("Sphyrna lewini", "Lutjanus argentiventris", "Mycteroperca olfax")
+# Biomass_sp %>% filter(grepl(paste(spInt, collapse = "|"), ValidName))
+
+#Option 2 to select species of interest
+#Creating data frame with species of interest
+spInt <- data.frame(ValidName = c("Sphyrna lewini", "Lutjanus argentiventris", "Mycteroperca olfax", "Triaenodon obesus"))
+
+plot1 <- Biomass_sp %>% 
+  #Complete sites for all species and methods
+  complete(Site, nesting(ValidName, Method)) %>% 
+  #Selecting species of interest using spInt
+  right_join(spInt, by = "ValidName") %>% 
+  #Replacing NAs in biomass with zeroes
+  mutate(Biomass_site_sp = replace_na(Biomass_site_sp, 0)) %>%
+  #Removing fishing status
+  select(-Fishing) %>%
+  #Joining fishing status to get correct info
+  left_join(SiteInfo %>% select(Site, Fishing) %>% unique(), by = "Site")
+
+#Density 
+plot2 <- Density_sp %>% 
+  #Complete sites for all species and methods
+  complete(Site, nesting(ValidName, Method)) %>% 
+  #Selecting species of interest using spInt
+  right_join(spInt, by = "ValidName") %>% 
+  #Replacing NAs in biomass with zeroes
+  mutate(N_site_sp = replace_na(N_site_sp, 0)) %>%
+  #Removing fishing status
+  select(-Fishing) %>%
+  #Joining fishing status to get correct info
+  left_join(SiteInfo %>% select(Site, Fishing) %>% unique(), by = "Site")
+
+#Creating empty lists to save figures
+fig_list <- list()
+#Creating combined plots for density and biomass per species
+for(i in seq_along(spInt$ValidName)){
+  bio <- plot1 %>% filter(ValidName == spInt$ValidName[i]) 
+  Pbio <- adonis(Biomass_site_sp ~ Method*Fishing, data = bio, permutations = 9999, method = "euclidean")
+  #To access p value for PERMANOVA comparison for fishing status use: Pbio$aov.tab$`Pr(>F)`[2]
+  f1 <- bio %>%
+    #Create a plot
+    #log10+1 applied to biomass so it can be seen better
+    ggplot(aes(x = Fishing, y = log10(Biomass_site_sp+1), fill = Method))+
+    geom_boxplot(width = 0.8)+ #outlier.size changes the size of the dots representing outliers
+    geom_signif(test = "wilcox.test", 
+                comparisons = list(c("Closed", "Open")), 
+                map_signif_level = TRUE, 
+                test.args = list(alternative = "two.sided", var.equal = FALSE, paired = FALSE), 
+                textsize = 4) +
+    scale_x_discrete(expand = c(0.5, 0))+
+    #Change the y axis label
+    labs(y = "Biomass grams/500"~m^2, title = spInt$ValidName[i])+
+    theme_classic() +
+    theme(axis.text.x = element_text(color = "black"),
+          axis.text.y = element_text(color = "black"),
+          axis.title.x = element_blank(),
+          legend.position = "hide",
+          plot.title = element_text(color = "black", face = "bold", size = 9)) +
+    coord_cartesian(clip = "off") + #Keeps the top of plot with significance level
+    scale_fill_grey(start = 0.1, end = 0.7) #color of boxplot
+  
+  
+  #Density
+  den <- plot2 %>% filter(ValidName == spInt$ValidName[i])
+  Pden <- adonis(N_site_sp ~ Method*Fishing, data = den, permutations = 9999, method = "euclidean")
+  f2 <- den %>%
+    #Create a plot
+    ggplot(aes(x = Fishing, y = N_site_sp, fill = Method))+
+    geom_boxplot(width = 0.8)+ #outlier.size changes the size of the dots representing outliers
+    geom_signif(test = "wilcox.test", 
+                comparisons = list(c("Closed", "Open")), 
+                map_signif_level = TRUE, 
+                test.args = list(alternative = "two.sided", var.equal = FALSE, paired = FALSE), 
+                textsize = 4) +
+    scale_x_discrete(expand = c(0.5, 0))+
+    #Change the y axis label
+    labs(y = "Density individuals/500"~m^2)+
+    theme_classic() +
+    theme(axis.text.x = element_text(color = "black"),
+          axis.text.y = element_text(color = "black"),
+          axis.title.x = element_blank(),
+          legend.position = "hide",
+          plot.title = element_text(color = "black", face = "bold", size = 9)) +
+    coord_cartesian(clip = "off") + #Keeps the top of plot with significance level
+    scale_fill_grey(start = 0.1, end = 0.7) #color of boxplot
+  
+  #Combining both plots (biomass and density)
+  fcomb <- ggarrange(f1, f2, nrow = 2, align = "hv")+
+    theme_classic() +
+    theme(panel.border = element_rect(fill = NA, linetype = "solid", color = "black"),
+          axis.text.x = element_blank(), 
+          axis.text.y = element_blank(), 
+          axis.ticks = element_blank())
+  
+  #Saving combined plot in empty list created at the top
+  fig_list[[i]] <- fcomb
+}
+
+#Creating composite image using the list of plots saved in the loop above
+compfig <- ggarrange(plotlist = fig_list, ncol = 3, nrow = 2, labels = c("A", "B", "C", "D"), 
+                     common.legend = T, hjust = -0.9,  vjust = 1.6)
+
+#Saving composite image as tiff file and changing dimensions
+ggsave("Figures/compfig.tiff", compfig, device = "tiff", dpi = 300, width = 10, height = 10)
+
+
+
+
+
+
+
+
+
 # Sphyrna lewini calculations ----------------------------------------------------------
 #Making variable for Sphyrna lewini biomass
 Sphyrna_lewini <- Biomass_sp %>% 

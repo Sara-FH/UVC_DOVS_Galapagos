@@ -438,6 +438,9 @@ TempRichness <- Richness %>%
   mutate(Comparison = paste(Fishing, Method))
 
 #Plot species richness with significance
+#Univariate permanova - DFA
+adonis(Site_sp_500m2 ~ Fishing*Method, data = Richness, permutations = 9999, method = "euclidean")
+
 Ric_boxplot  <- ggplot(Richness, aes(x = Fishing, y = Site_sp_500m2, fill = Method)) +
   geom_boxplot(fatten = 3) +
   ggtitle("Total richness per 500"~m^2) +
@@ -450,7 +453,7 @@ Ric_boxplot  <- ggplot(Richness, aes(x = Fishing, y = Site_sp_500m2, fill = Meth
   scale_y_continuous(name = "Number of species/500"~m^2) +
   scale_x_discrete(labels = c("No-take zone", "Fishing zone")) +
   theme_classic() +
-  theme(aspect.ratio = 1.5, 
+  theme(#aspect.ratio = 1.5, 
         plot.title = element_text(color="black", face="bold", hjust = 0.5),
         legend.title = element_text(color = "black"), 
         legend.text = element_text(color = "black"), 
@@ -528,7 +531,7 @@ Den_boxplot <- ggplot(Density, aes(x = Fishing, y = N_site_500m2, fill = Method)
   scale_y_continuous(name = "Number of individuals/500"~m^2) +
   scale_x_discrete(labels = c("No-take zone", "Fishing zone")) +
   theme_classic() +
-  theme(aspect.ratio = 1.5, 
+  theme(#aspect.ratio = 1.5, 
         plot.title = element_text(color="black", face="bold", hjust = 0.5),
         legend.title = element_text(color = "black"), 
         legend.text = element_text(color = "black"), 
@@ -648,8 +651,11 @@ rm(GoodPrecision)
 
 # Biomass calculations UVC ---------------------------------------------
 #Loading total length ratio for FishDB data
-TLRatio <- read.xlsx2("Data/TLRatio.xlsx",
-                      sheetName = 1, header = TRUE, stringsAsFactors = FALSE) %>% 
+TLRatio <- xlsx::read.xlsx2("Data/TLRatio.xlsx",
+                      sheetIndex = 1, header = TRUE, stringsAsFactors = FALSE) %>% 
+  mutate(TLRatio = as.numeric(TLRatio))
+#In case it does not work, try the line below
+TLRatio <- readxl::read_excel("Data/TLRatio.xlsx", sheet = 1) %>%
   mutate(TLRatio = as.numeric(TLRatio))
 str(TLRatio) #TLRation is numeric
 
@@ -698,7 +704,7 @@ TempBiomass <- Biomass %>%
   mutate(Comparison = paste(Fishing, Method))
 
 #plot biomass in g per 500m2
-Bio_boxplot <- ggplot(Biomass, aes(x = Fishing, y = Gram_500m2_site, fill = Method)) +
+Bio_boxplot <- ggplot(Biomass, aes(x = Fishing, y = Gram_500m2_site/1000, fill = Method)) +
   geom_boxplot(fatten = 3) + 
   ggtitle("Total biomass per 500"~m^2) +
   geom_signif(comparisons = list(c("Closed", "Open")), 
@@ -708,15 +714,17 @@ Bio_boxplot <- ggplot(Biomass, aes(x = Fishing, y = Gram_500m2_site, fill = Meth
   scale_fill_manual(name = "Method", labels = c("Stereo-DOVs", "UVC"), 
                     values = grey.colors(2, start = 0.1, end = 0.5)) +
   scale_x_discrete(labels = c("No-take zone", "Fishing zone")) +
-  scale_y_continuous(name = "g/500"~m^2) +
+  scale_y_continuous(name = "Kg/500"~m^2) +
   theme_classic() +
-  theme(aspect.ratio = 1.5, 
+  theme(#aspect.ratio = 1.5, 
         plot.title = element_text(color="black", face="bold", hjust = 0.5),
         legend.title = element_text(color = "black"), 
         legend.text = element_text(color = "black"), 
         axis.title.x = element_blank(), 
         axis.text.x = element_text(color = "black"), 
-        axis.text.y = element_text(color = "black")) +
+        axis.text.y = element_text(color = "black"),
+        legend.position = "bottom")+
+  #guides(fill = guide_legend(title.position = "top", ncol = 1))+ - DFA
   coord_cartesian(clip = "off")
 
 Bio_boxplot
@@ -764,10 +772,12 @@ rm(Biomass_DOVS, Biomass_UVC, TempBiomass)
 
 
 # Combining boxplots into figure ------------------------------------------
-
 boxplot_all <- ggarrange(nrow = 1, ncol = 3, Ric_boxplot, Den_boxplot, Bio_boxplot,
           align = "v", common.legend = TRUE, legend = "bottom")
 boxplot_all
+
+#Saving composite image with different ratios - DFA
+ggsave("Figures/test.tiff", boxplot_all, device = "tiff", dpi = 300, width = 20, height = 6.5)
 #When I use align v, they are the same size, but the distance between y-axis labels to the y-axis is different
 #when I use align h, the plots are not the same size, but the distance to the y-axis is the same
 #I don't understand...
