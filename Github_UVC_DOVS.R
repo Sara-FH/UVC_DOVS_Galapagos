@@ -437,29 +437,35 @@ Richness <- rbind(DOVS_richness, UVC_richness)
 TempRichness <- Richness %>% 
   mutate(Comparison = paste(Fishing, Method))
 
-#Plot species richness with significance
-#Univariate permanova - DFA
-adonis(Site_sp_500m2 ~ Fishing*Method, data = Richness, permutations = 9999, method = "euclidean")
+#UNIVARIATE PERMANOVA for species richness
+perm_ric <- adonis(Site_sp_500m2 ~ Fishing*Method, data = Richness, 
+                   permutations = 9999, method = "euclidean")
+perm_ric
 
-Ric_boxplot  <- ggplot(Richness, aes(x = Fishing, y = Site_sp_500m2, fill = Method)) +
+#Plot species richness with significance
+Ric_boxplot <- ggplot(Richness, aes(x = Fishing, y = Site_sp_500m2, fill = Method)) +
   geom_boxplot(fatten = 3) +
-  ggtitle("Total richness per 500"~m^2) +
-  geom_signif(comparisons = list(c("Closed", "Open")), 
-              map_signif_level = TRUE, 
-              test = "wilcox.test", 
-              test.args = list(alternative = "two.sided", var.equal = FALSE, paired = FALSE)) +
+  ggtitle("Total species richness per 500"~m^2) +
+  geom_signif(annotations = paste0("p = ", perm_ric$aov.tab$`Pr(>F)`[2]), 
+              y_position = max(Richness$Site_sp_500m2)*1.1, 
+              xmin = "Closed", xmax = "Open", textsize = 5, 
+              vjust = -0.2) +
   scale_fill_manual(name = "Method", labels = c("Stereo-DOVs", "UVC"), 
                     values = grey.colors(2, start = 0.1, end = 0.5)) +
-  scale_y_continuous(name = "Number of species/500"~m^2) +
+  scale_y_continuous(name = "Number of species/500"~m^2, 
+                     breaks = seq(0,5,by = 1)) +
   scale_x_discrete(labels = c("No-take zone", "Fishing zone")) +
   theme_classic() +
-  theme(#aspect.ratio = 1.5, 
-        plot.title = element_text(color="black", face="bold", hjust = 0.5),
-        legend.title = element_text(color = "black"), 
-        legend.text = element_text(color = "black"), 
-        axis.title.x = element_blank(), 
-        axis.text.x = element_text(color = "black"), 
-        axis.text.y = element_text(color = "black")) +
+  theme(plot.title = element_text(color="black", face="bold", hjust = 0.5),
+        legend.title = element_text(color = "black", size = 14), 
+        legend.text = element_text(color = "black", size = 13),
+        legend.key.size = unit(1,"cm"),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(color = "black", size = 16),
+        axis.text.x = element_text(color = "black", size = 15), 
+        axis.text.y = element_text(color = "black", size = 15), 
+        title = element_text(color = "black", size = 16)) +
+  guides(fill = guide_legend(title.position = "top", ncol = 1)) +
   coord_cartesian(clip = "off")
 
 Ric_boxplot
@@ -479,7 +485,7 @@ rm(DOVS_richness, UVC_richness, TempRichness)
 
 # Density boxplot ---------------------------------------------------------
 
-#Calculating density in DOVS for each site per hectare
+#Calculating density in DOVS for each site per 500m2
 DOVS_density <- DOVS %>% 
   select(Site, Period, N, Method, ValidName, Fishing, SiteCode, Transect_length_m) %>% 
   rbind(EmptyPeriods_DOVS) %>% #Binding rows with no fish in them
@@ -495,7 +501,7 @@ DOVS_density <- DOVS %>%
   unique() %>% 
   ungroup()
 
-#Calculating density in UVC for each site per hectare
+#Calculating density in UVC for each site per 500m2
 UVC_density <- UVC %>% 
   select(Site, Period, N, Method, ValidName, Fishing, SiteCode, Transect_length_m) %>% 
   rbind(EmptyPeriods_UVC) %>% #Binding rows with no fish in them
@@ -518,26 +524,32 @@ Density <- rbind(DOVS_density, UVC_density)
 TempDensity <- Density %>% 
   mutate(Comparison = paste(Fishing, Method))
 
+#UNIVARIATE PERMANOVA for density
+perm_den <- adonis(N_site_500m2^0.5 ~ Fishing*Method, data = Density, 
+                   permutations = 9999, method = "euclidean")
+perm_den
+
 #Plot density with significance
 Den_boxplot <- ggplot(Density, aes(x = Fishing, y = N_site_500m2, fill = Method)) +
   geom_boxplot(fatten = 3) +
   ggtitle("Total density per 500"~m^2) +
-  geom_signif(comparisons = list(c("Closed", "Open")), 
-              map_signif_level = TRUE, 
-              test = "wilcox.test",
-              test.args = list(alternative = "two.sided", var.equal = FALSE, paired = FALSE)) +
+  geom_signif(annotations = paste0("p = ", perm_den$aov.tab$`Pr(>F)`[2]), 
+              y_position = max(Density$N_site_500m2)*1.1, 
+              xmin = "Closed", xmax = "Open", textsize = 5, 
+              vjust = -0.2) +
   scale_fill_manual(name = "Method", labels = c("Stereo-DOVs", "UVC"), 
                     values = grey.colors(2, start = 0.1, end = 0.5)) +
   scale_y_continuous(name = "Number of individuals/500"~m^2) +
   scale_x_discrete(labels = c("No-take zone", "Fishing zone")) +
   theme_classic() +
-  theme(#aspect.ratio = 1.5, 
-        plot.title = element_text(color="black", face="bold", hjust = 0.5),
+  theme(plot.title = element_text(color="black", face="bold", hjust = 0.5),
         legend.title = element_text(color = "black"), 
         legend.text = element_text(color = "black"), 
         axis.title.x = element_blank(), 
-        axis.text.x = element_text(color = "black"), 
-        axis.text.y = element_text(color = "black")) +
+        axis.title.y = element_text(color = "black", size = 16),
+        axis.text.x = element_text(color = "black", size = 15), 
+        axis.text.y = element_text(color = "black", size = 15), 
+        title = element_text(color = "black", size = 16)) +
   coord_cartesian(clip = "off")
 
 Den_boxplot
@@ -643,7 +655,7 @@ Biomass_DOVS <- DOVS %>%
   group_by(Site) %>% 
   summarise(Gram_500m2_site = mean(Gram_500m2_period), #Calculating average biomass of periods as site biomass
             Method, Fishing, SiteCode) %>% 
-  mutate(KG_500m2_site = Gram_500m2_site/1000) %>% #Calculating kg per 500m2 at each site
+  mutate(Kg_500m2_site = Gram_500m2_site/1000) %>% #Calculating kg per 500m2 at each site
   unique()
 
 #Removing variables that are no longer necessary
@@ -688,7 +700,7 @@ Biomass_UVC <- UVC %>%
   group_by(Site) %>% 
   summarise(Gram_500m2_site = mean(Gram_500m2_period), #Calculating average biomass of periods as site biomass
             Method, Fishing, SiteCode) %>% 
-  mutate(KG_500m2_site = Gram_500m2_site/1000) %>% #Calculating kg per 500m2 at each site
+  mutate(Kg_500m2_site = Gram_500m2_site/1000) %>% #Calculating kg per 500m2 at each site
   unique()
 
 #Removing EmptyPeriods data frames, as they are no longer needed
@@ -703,28 +715,32 @@ Biomass <- rbind(Biomass_DOVS, Biomass_UVC)
 TempBiomass <- Biomass %>% 
   mutate(Comparison = paste(Fishing, Method))
 
-#plot biomass in g per 500m2
-Bio_boxplot <- ggplot(Biomass, aes(x = Fishing, y = Gram_500m2_site/1000, fill = Method)) +
+#UNIVARIATE PERMANOVA for density
+perm_bio <- adonis(Kg_500m2_site^0.25 ~ Fishing*Method, data = Biomass, 
+                   permutations = 9999, method = "euclidean")
+perm_bio
+
+#plot biomass in kg per 500m2
+Bio_boxplot <- ggplot(Biomass, aes(x = Fishing, y = Kg_500m2_site, fill = Method)) +
   geom_boxplot(fatten = 3) + 
   ggtitle("Total biomass per 500"~m^2) +
-  geom_signif(comparisons = list(c("Closed", "Open")), 
-              map_signif_level = TRUE, 
-              test = "wilcox.test",
-              test.args = list(alternative = "two.sided", var.equal = FALSE, paired = FALSE)) +
+  geom_signif(annotations = paste0("p = ", perm_bio$aov.tab$`Pr(>F)`[2]), 
+              y_position = max(Biomass$Kg_500m2_site)*1.1, 
+              xmin = "Closed", xmax = "Open", textsize = 5, 
+              vjust = -0.2) +
   scale_fill_manual(name = "Method", labels = c("Stereo-DOVs", "UVC"), 
                     values = grey.colors(2, start = 0.1, end = 0.5)) +
   scale_x_discrete(labels = c("No-take zone", "Fishing zone")) +
   scale_y_continuous(name = "Kg/500"~m^2) +
   theme_classic() +
-  theme(#aspect.ratio = 1.5, 
-        plot.title = element_text(color="black", face="bold", hjust = 0.5),
+  theme(plot.title = element_text(color="black", face="bold", hjust = 0.5),
         legend.title = element_text(color = "black"), 
         legend.text = element_text(color = "black"), 
         axis.title.x = element_blank(), 
-        axis.text.x = element_text(color = "black"), 
-        axis.text.y = element_text(color = "black"),
-        legend.position = "bottom")+
-  #guides(fill = guide_legend(title.position = "top", ncol = 1))+ - DFA
+        axis.title.y = element_text(color = "black", size = 16),
+        axis.text.x = element_text(color = "black", size = 15), 
+        axis.text.y = element_text(color = "black", size = 15), 
+        title = element_text(color = "black", size = 16))+
   coord_cartesian(clip = "off")
 
 Bio_boxplot
@@ -741,63 +757,86 @@ ggplot(TempBiomass, aes(x = Comparison, y = Gram_500m2_site, fill = Comparison))
               test.args = list(alternative = "two.sided", var.equal = FALSE, paired = FALSE)) +
   theme_classic()
 
-#plot biomass in kg per 500m2
-Bio_boxplot2 <- ggplot(Biomass, aes(x = Fishing, y = KG_500m2_site, fill = Method)) +
-  geom_boxplot() +
-  ggtitle("Total biomass per 500"~m^2) +
-  geom_signif(comparisons = list(c("Closed", "Open")), 
-              map_signif_level = TRUE, 
-              test = "wilcox.test",
-              test.args = list(alternative = "two.sided", var.equal = FALSE, paired = FALSE)) +
-  scale_fill_manual(name = "Method", labels = c("Stereo-DOVs", "UVC"), 
-                    values = grey.colors(2, start = 0.1, end = 0.5)) +
-  scale_y_continuous(name = "kg/500"~m^2) +
-  scale_x_discrete(labels = c("No-take zone", "Fishing zone")) +
-  theme_classic() +
-  theme(aspect.ratio = 1.5, 
-        plot.title = element_text(color="black", face="bold", hjust = 0.5),
-        legend.title = element_text(color = "black"), 
-        legend.text = element_text(color = "black"), 
-        axis.title.x = element_blank(), 
-        axis.text.x = element_text(color = "black"), 
-        axis.text.y = element_text(color = "black")) +
-  coord_cartesian(clip = "off")
-
-Bio_boxplot2
-#Significant p < 0.05 for *
-
 
 #Deleting variables that are no longer needed
 rm(Biomass_DOVS, Biomass_UVC, TempBiomass)
 
 
 # Combining boxplots into figure ------------------------------------------
+
+#Combining boxplot for richness, density and biomass
 boxplot_all <- ggarrange(nrow = 1, ncol = 3, Ric_boxplot, Den_boxplot, Bio_boxplot,
-          align = "v", common.legend = TRUE, legend = "bottom")
+          align = "v", common.legend = TRUE, legend = "right")
 boxplot_all
 
 #Saving composite image with different ratios - DFA
-ggsave("Figures/test.tiff", boxplot_all, device = "tiff", dpi = 300, width = 20, height = 6.5)
-#When I use align v, they are the same size, but the distance between y-axis labels to the y-axis is different
-#when I use align h, the plots are not the same size, but the distance to the y-axis is the same
-#I don't understand...
+ggsave("Figures/CompBoxplot.tiff", boxplot_all, device = "tiff", dpi = 300, width = 18, height = 6.5)
 
-#How do I save the plot in a good size?
-#ggsave("boxplot_all.pdf", width = 3, height = 4)
-#ggsave("boxplot_all.png", width = 3, height = 4, dpi=100)
 
-ggarrange(nrow = 1, ncol = 3, Ric_boxplot, Den_boxplot, Bio_boxplot2,
-          align = "v", common.legend = TRUE, legend = "bottom")
+#combining boxplots with biomass having log10(x+1) scale
+
+#plot biomass in kg per 500m2 - with log10 transformation of y-axis
+Bio_boxplot2 <- ggplot(Biomass, aes(x = Fishing, y = log10(Kg_500m2_site+1), fill = Method)) +
+  geom_boxplot(fatten = 3) + 
+  ggtitle("Total biomass per 500"~m^2) +
+  geom_signif(annotations = paste0("p = ", perm_bio$aov.tab$`Pr(>F)`[2]), 
+              y_position = max(log10(Biomass$Kg_500m2_site+1))*1.1, 
+              xmin = "Closed", xmax = "Open", textsize = 5, 
+              vjust = -0.2) +
+  scale_fill_manual(name = "Method", labels = c("Stereo-DOVs", "UVC"), 
+                    values = grey.colors(2, start = 0.1, end = 0.5)) +
+  scale_x_discrete(labels = c("No-take zone", "Fishing zone")) +
+  scale_y_continuous(name = bquote(Log[10](1+Kg/500~m^2)), 
+                     breaks = seq(0,4, by = 1)) +
+  theme_classic() +
+  theme(plot.title = element_text(color="black", face="bold", hjust = 0.5),
+        legend.title = element_text(color = "black"), 
+        legend.text = element_text(color = "black"), 
+        axis.title.x = element_blank(), 
+        axis.title.y = element_text(color = "black", size = 16),
+        axis.text.x = element_text(color = "black", size = 15), 
+        axis.text.y = element_text(color = "black", size = 15), 
+        title = element_text(color = "black", size = 16))+
+  coord_cartesian(clip = "off")
+
+Bio_boxplot2
+
+#Combining boxplot for richness, density and biomass
+boxplot_all <- ggarrange(nrow = 1, ncol = 3, Ric_boxplot, Den_boxplot, Bio_boxplot2,
+                         align = "v", common.legend = TRUE, legend = "right")
+boxplot_all
+
+#Saving composite image with different ratios - DFA
+ggsave("Figures/CompBoxplot2.tiff", boxplot_all, device = "tiff", dpi = 300, width = 18, height = 6.5)
 
 
 #Delete variables used for boxplots
-rm(boxplot_all, Ric_boxplot, Den_boxplot, Bio_boxplot)
+rm(boxplot_all, Ric_boxplot, Den_boxplot, Bio_boxplot, Bio_boxplot2)
 
 
 # Univariate PERMANOVA for boxplot ----------------------------------------
 
+#Species richness univariate PERMANOVA to excel
+#Making results from PERMANOVA ready for excel
+results <- perm_ric$aov.tab
+#writing excel file
+write.xlsx(results, "Figures/UNI_PERM_Richness_Boxplot.xlsx")
+
+#Density univariate PERMANOVA to excel
+#Making results from PERMANOVA ready for excel
+results <- perm_den$aov.tab
+#writing excel file
+write.xlsx(results, "Figures/UNI_PERM_Density_Boxplot.xlsx")
+
+#Density univariate PERMANOVA to excel
+#Making results from PERMANOVA ready for excel
+results <- perm_bio$aov.tab
+#writing excel file
+write.xlsx(results, "Figures/UNI_PERM_Biomass_Boxplot.xlsx")
 
 
+#Remove Univariate PERMANOVA variables after use
+rm(perm_ric, perm_den, perm_bio, results)
 
 # Biomass calculations for PCO ---------------------------------------------
 
@@ -827,7 +866,7 @@ Biomass_sp_DOVS <- DOVS %>%
   summarise(Gram_site_sp = mean(Gram_500m2), 
             ValidName, Method, Fishing, SiteCode) %>%
   #Going from g to kg for the biomass
-  mutate(Biomass_site_sp = Gram_site_sp/1000) %>% #Biomass in kg
+  mutate(Kg_site_sp = Gram_site_sp/1000) %>% #Biomass in kg
   select(-Gram_site_sp) %>% #Removing the Gram_site_sp column
   unique() %>% 
   ungroup()
@@ -853,7 +892,7 @@ Biomass_sp_UVC <- UVC %>%
   summarise(Gram_site_sp = mean(Gram_500m2), 
             ValidName, Method, Fishing, SiteCode) %>%
   #Going from g to kg for the biomass
-  mutate(Biomass_site_sp = Gram_site_sp/1000) %>% #Biomass in kg
+  mutate(Kg_site_sp = Gram_site_sp/1000) %>% #Biomass in kg
   select(-Gram_site_sp) %>% #Removing the Gram_site_sp column
   unique() %>% 
   ungroup()
@@ -876,7 +915,7 @@ EmptySites <- SiteInfo %>%
           mutate(Method = "UVC") %>% 
           filter(!(Site %in% UVC$Site))) %>% 
   mutate(ValidName = "Dummy") %>% 
-  mutate(Biomass_site_sp = 0.001)
+  mutate(Kg_site_sp = 0.001)
 #Adding the sites that have no fish to Biomass_sp
 Biomass_sp <- Biomass_sp %>% 
   rbind(EmptySites)
@@ -893,7 +932,7 @@ Bio_mat <- Biomass_sp %>% #Based on biomass calculations for individual species 
   #Adding the Method to the site name (I split them later for the plot)
   unite(SiteMet, Site, Method, sep = " ") %>% 
   #Making the format right for the matrix
-  pivot_wider(names_from = "ValidName", values_from = "Biomass_site_sp") %>% 
+  pivot_wider(names_from = "ValidName", values_from = "Kg_site_sp") %>% 
   mutate(Dummy = 0.001) %>% #Adding dummy species to all sites, to enable dissimilarity calculations later
   #As I have some empty sites, where it is important to see how the methods UVC and DOVS differ
   arrange(SiteMet) %>% #Arranging site names
@@ -909,8 +948,8 @@ range(Bio_mat^0.25)
 #To achieve this I am doing a fourth root transformation
 
 #Checking QQplot for biomass of both methods
-qqnorm(Biomass_sp$Biomass_site_sp^0.25)
-qqline(Biomass_sp$Biomass_site_sp^0.25, col = "red")
+qqnorm(Biomass_sp$Kg_site_sp^0.25)
+qqline(Biomass_sp$Kg_site_sp^0.25, col = "red")
 #The data is not normally distributed, but transforming the data makes it a little closer to normal distribution
 #I can do the PERMANOVA based on the dissimilarity despite not having normally distributed data
 
@@ -1239,9 +1278,9 @@ Den_sp_DOVS <- DOVS %>%
   summarise(N_period = sum(N), #Sum of abundance of species within each period
             Method, Fishing, SiteCode, Transect_area) %>% 
   unique() %>%
-  mutate(N_hectare = N_period/(Transect_area/(10^4))) %>% #Number/hectare
+  mutate(N_500m2 = (N_period/Transect_area)*500) %>% #Number/500m2
   group_by(Site, ValidName) %>% 
-  summarise(N_site_sp = mean(N_hectare), #Calculating average abundance of each species per site
+  summarise(N_site_sp = mean(N_500m2), #Calculating average abundance of each species per site
             Method, Fishing, SiteCode, ValidName, N_site_sp) %>% 
   unique() %>% 
   ungroup()
@@ -1254,9 +1293,9 @@ Den_sp_UVC <- UVC %>%
   summarise(N_period = sum(N), #Sum of abundance of species within each period
             Method, Fishing, SiteCode, Transect_area) %>% 
   unique() %>%
-  mutate(N_hectare = N_period/(Transect_area/(10^4))) %>% #Number/hectare
+  mutate(N_500m2 = (N_period/Transect_area)*500) %>% #Number/500m2
   group_by(Site, ValidName) %>% 
-  summarise(N_site_sp = mean(N_hectare), #Calculating average abundance of each species per site
+  summarise(N_site_sp = mean(N_500m2), #Calculating average abundance of each species per site
             Method, Fishing, SiteCode, ValidName, N_site_sp) %>% 
   unique() %>% 
   ungroup()

@@ -319,7 +319,7 @@ o
 
 #Species of interest KDE one figure
 ggarrange(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, 
-          ncol = 3, nrow = 5)
+          ncol = 4, nrow = 4)
 #This does not work
 #I think it has something to do with the kde.compare function not being saved as a plot in the letters
 
