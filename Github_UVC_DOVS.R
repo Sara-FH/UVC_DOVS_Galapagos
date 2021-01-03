@@ -820,29 +820,25 @@ rm(boxplot_all, Ric_boxplot, Den_boxplot, Bio_boxplot, Bio_boxplot2)
 #Making results from PERMANOVA ready for excel
 results <- perm_ric$aov.tab
 #writing excel file
-write.xlsx(results, "Figures/UNI_PERM_Richness_Boxplot.xlsx")
+write.xlsx(results, "Tables/UNI_PERM_Richness_Boxplot.xlsx")
 
 #Density univariate PERMANOVA to excel
 #Making results from PERMANOVA ready for excel
 results <- perm_den$aov.tab
 #writing excel file
-write.xlsx(results, "Figures/UNI_PERM_Density_Boxplot.xlsx")
+write.xlsx(results, "Tables/UNI_PERM_Density_Boxplot.xlsx")
 
 #Density univariate PERMANOVA to excel
 #Making results from PERMANOVA ready for excel
 results <- perm_bio$aov.tab
 #writing excel file
-write.xlsx(results, "Figures/UNI_PERM_Biomass_Boxplot.xlsx")
+write.xlsx(results, "Tables/UNI_PERM_Biomass_Boxplot.xlsx")
 
 
 #Remove Univariate PERMANOVA variables after use
 rm(perm_ric, perm_den, perm_bio, results)
 
 # Biomass calculations for PCO ---------------------------------------------
-
-#For these calculations there is no need to make use of the empty periods, as averages are calculated 
-#per species, so empty periods are not affecting the average biomass per sp per site
-#These calculations will be used for the matrix to do the biomass PCO
 
 #Calculating biomass for DOVS
 Biomass_sp_DOVS <- DOVS %>%
@@ -915,7 +911,7 @@ EmptySites <- SiteInfo %>%
           mutate(Method = "UVC") %>% 
           filter(!(Site %in% UVC$Site))) %>% 
   mutate(ValidName = "Dummy") %>% 
-  mutate(Kg_site_sp = 0.001)
+  mutate(Kg_site_sp = 0.00001)
 #Adding the sites that have no fish to Biomass_sp
 Biomass_sp <- Biomass_sp %>% 
   rbind(EmptySites)
@@ -933,7 +929,8 @@ Bio_mat <- Biomass_sp %>% #Based on biomass calculations for individual species 
   unite(SiteMet, Site, Method, sep = " ") %>% 
   #Making the format right for the matrix
   pivot_wider(names_from = "ValidName", values_from = "Kg_site_sp") %>% 
-  mutate(Dummy = 0.001) %>% #Adding dummy species to all sites, to enable dissimilarity calculations later
+  #Adding dummy species to all sites, to enable dissimilarity calculations later
+  mutate(Dummy = 0.00001) %>% 
   #As I have some empty sites, where it is important to see how the methods UVC and DOVS differ
   arrange(SiteMet) %>% #Arranging site names
   column_to_rownames("SiteMet") %>% #Making a column into row names for the matrix
@@ -954,7 +951,11 @@ qqline(Biomass_sp$Kg_site_sp^0.25, col = "red")
 #I can do the PERMANOVA based on the dissimilarity despite not having normally distributed data
 
 #Applying a 4th root transformation to biomass data - and making a matrix
-Bio_mat <- Bio_mat^0.25
+Bio_mat <- Bio_mat^0.25 
+
+#Changing Dummy species data back to 1*10^-5 to avoid it influencing analysis
+Bio_mat[, "Dummy"] <- 0.00001 
+
 #Calculating dissimilarity distance using vegan package, method bray curtis
 Bio_mat_dist <- vegdist(Bio_mat, method = "bray")
 #Create a weighted Principal Coordinates Analysis plot
@@ -1064,17 +1065,22 @@ species_pcoa_arrows$vectors <- as.data.frame(species_pcoa_arrows$vectors)
 arrows_df <- as.data.frame(species_pcoa_arrows$U/15)
 arrows_df$variable <- rownames(arrows_df)
 
+#Naming arrows with short species names
+arrows_df$variable <- c("L. argentiventris", "T. obesus", "M. olfax", 
+                        "C. limbatus", "C. melampygus", "C. galapagensis", 
+                        "S. lewini")
+
 #Making an anchor for the arrows
 Anchor <- c(0.45,-0.4) #upper right corner
 
 #Constant adjusting the size of vectors
-K <- 1 #not actually necessary, as it is currentlt 1, but good for playing around with the code
+K <- 1 #not actually necessary, as it is currently 1, but good for playing around with the code
 
 #define other coordinates for arrows
 X2 <- (arrows_df$Axis.1 + Anchor[1])*K
 Y2 <- (arrows_df$Axis.2 + Anchor[2])*K
 
-#plotting biomass, method, fishing and arrows for species with largest biomasses
+#plotting biomass, method, fishing and arrows for species with the largest biomasses
 ggplot(PCO_biomass) + 
   #Adding color for fishing and shapes for method
   geom_point(aes(PC1, PC2, color = Fishing, shape = Method), size = 2.5) + 
@@ -1100,7 +1106,8 @@ ggplot(PCO_biomass) +
         axis.title.x = element_text(color = "black", size = 14),
         axis.title.y = element_text(color = "black", size = 14))
 
-# PCO Figure for biomass ----------------------------------------------------
+
+# PCO Figure for biomass Method and Bioregion -----------------------------
 
 #Renaming methods and fishing status in PCO_biomass for better names on graph
 PCO_biomass <- PCO_biomass %>% 
@@ -1116,7 +1123,7 @@ PCO_biomass <- PCO_biomass %>%
                             "Oeste Fria" = "Western"))
 
 #plotting biomass, method, fishing and arrows for species with largest biomasses
-ggplot(PCO_biomass) + 
+PCO_bio_1 <- ggplot(PCO_biomass) + 
   #Adding color for fishing and shapes for method
   geom_point(aes(PC1, PC2, color = Zone, shape = Method), size = 4) + 
   geom_segment(data = arrows_df, #Adding arrows
@@ -1124,97 +1131,166 @@ ggplot(PCO_biomass) +
                mapping = aes(xend = X2, yend = Y2),
                arrow = arrow(length = unit(2, "mm")), #Adding arrow head
                size = 0.8) +
-  #Adding arrow labels for C. galapagensis and S. lewini
-  geom_text(data = arrows_df[c(6:7),], aes(label = arrows_df$variable[c(6:7)]),
-            size = 5, fontface = "italic",
+  #Adding arrow labels for C. galapagensis
+  geom_text(data = arrows_df[6,], aes(label = arrows_df$variable[6]),
+            size = 6, fontface = "italic",
             lineheight = 0.6, 
-            x = X2[c(6:7)], y = Y2[c(6:7)], 
+            x = X2[6], y = Y2[6], 
             hjust = 0.1, vjust = -0.5) +
+  #Adding arrow labels for S. lewini
+  geom_text(data = arrows_df[7,], aes(label = arrows_df$variable[7]),
+            size = 6, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[7], y = Y2[7], 
+            hjust = 0.5, vjust = -0.5) +
   #Adding arrow labels for C. melampygus, so it can be read
   geom_text(data = arrows_df[5,], aes(label = arrows_df$variable[5]),
-            size = 5, fontface = "italic",
+            size = 6, fontface = "italic",
             lineheight = 0.6, 
             x = X2[5], y = Y2[5], 
             hjust = 1.15, vjust = -1.7) +
   #Adding arrow labels for C. limbatus
   geom_text(data = arrows_df[c(4),], aes(label = arrows_df$variable[c(4)]),
-            size = 5, fontface = "italic",
+            size = 6, fontface = "italic",
             lineheight = 0.6,  
             x = X2[c(4)], y = Y2[c(4)], 
-            hjust = 1.12, vjust = -0.8) +
+            hjust = 1.15, vjust = -0.8) +
   #Adding arrow labels for M. olfax.
   geom_text(data = arrows_df[3,], aes(label = arrows_df$variable[3]),
-            size = 5, fontface = "italic",
+            size = 6, fontface = "italic",
             lineheight = 0.6, 
             x = X2[3], y = Y2[3], 
             hjust = 0.45, vjust = 1) +
-  #Adding arrow labels for L. argenticentris and T. obsus
-  geom_text(data = arrows_df[1:2,], aes(label = arrows_df$variable[1:2]),
-            size = 5, fontface = "italic",
+  #Adding arrow labels for L. argenticentris
+  geom_text(data = arrows_df[1,], aes(label = arrows_df$variable[1]),
+            size = 6, fontface = "italic",
             lineheight = 0.6, 
-            x = X2[1:2], y = Y2[1:2], 
-            hjust = 0.05, vjust = 1.2) +
-  xlim(-0.6, 0.6) +
+            x = X2[1], y = Y2[1], 
+            hjust = 0.5, vjust = 1.2) +
+  #Adding arrow labels for T. obesus
+  geom_text(data = arrows_df[2,], aes(label = arrows_df$variable[2]),
+            size = 6, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[2], y = Y2[2], 
+            hjust = 0.1, vjust = 1.2) +
+  scale_x_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.62, 0.62)) +
   scale_color_grey(start = 0.1, end = 0.5) +
   theme_classic() +
-  xlab("PCO1") +
-  ylab("PCO2") +
+  #Adding percentages for the PCO axes
+  xlab(paste0("PCO1 (", 
+              as.character(as.numeric(format(round(Bio_mat_pcoa$values$Relative_eig[1], 3)))*100), 
+              "% of total variation)")) +
+  ylab(paste0("PCO2 (", 
+              as.character(as.numeric(format(round(Bio_mat_pcoa$values$Relative_eig[2], 3)))*100), 
+              "% of total variation)")) +
   #moving legend in plot and making box around it
   theme(legend.position = c(0.9, 0.85), 
         legend.box.background = element_rect(size = 0.7, linetype = "solid", colour ="black"), 
         legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"),
         legend.title = element_text(color = "black", size = 17),
         legend.text = element_text(color = "black", size = 15),
-        axis.text.x = element_text(color = "black", size = 14), 
-        axis.text.y = element_text(color = "black", size = 14), 
-        axis.title.x = element_text(color = "black", size = 14),
-        axis.title.y = element_text(color = "black", size = 14), 
+        axis.text.x = element_text(color = "black", size = 15), 
+        axis.text.y = element_text(color = "black", size = 15), 
+        axis.title.x = element_text(color = "black", size = 17),
+        axis.title.y = element_text(color = "black", size = 17), 
         axis.line.x = element_line(color = "black", size = 0.5), 
         axis.line.y = element_line(color = "black", size = 0.5))
 
+PCO_bio_1
+
+#Saving PCO for biomass - method and fishing status
+ggsave("Figures/PCO_bio_method_fishing.tiff", 
+       PCO_bio_1, device = "tiff", dpi = 300, width = 11, height = 10)
+
 
 #plotting biomass, Bioregion and fishing, along with arrows for species with largest biomasses
-ggplot(PCO_biomass) + 
-  #Adding ellipse around fishing status
-  #stat_ellipse(geom = "polygon", col = "black", alpha = 0.3, 
-  #             aes(PC1, PC2, col = Bioregion, fill = Bioregion)) +
-  #Adding color for fishing and shapes for method
-  geom_point(aes(PC1, PC2, color = Bioregion, shape = Fishing), size = 2.5) + 
+PCO_bio_2 <- ggplot(PCO_biomass) + 
+  geom_point(aes(PC1, PC2, color = Bioregion, shape = Zone), size = 4) + 
   geom_segment(data = arrows_df, #Adding arrows
                x = Anchor[1], y = Anchor[2],
                mapping = aes(xend = X2, yend = Y2),
                arrow = arrow(length = unit(2, "mm")), #Adding arrow head
                size = 0.8) +
-  labs(title = "Principal Coordinate Ordination Biomass") + 
-  #Adding arrow labels for species with arrows upwards in plot
-  geom_text(data = arrows_df[1:3,], aes(label = arrows_df$variable[1:3]),
-            size = 4, fontface = "bold",
+  geom_segment(data = arrows_df, #Adding arrows
+               x = Anchor[1], y = Anchor[2],
+               mapping = aes(xend = X2, yend = Y2),
+               arrow = arrow(length = unit(2, "mm")), #Adding arrow head
+               size = 0.8) +
+  #Adding arrow labels for C. galapagensis
+  geom_text(data = arrows_df[6,], aes(label = arrows_df$variable[6]),
+            size = 6, fontface = "italic",
             lineheight = 0.6, 
-            x = X2[1:3], y = Y2[1:3], 
-            vjust = -0.8) +
-  #Adding arrow labels for species with arrows downwards in plot
-  geom_text(data = arrows_df[c(4, 6:7),], aes(label = arrows_df$variable[c(4, 6:7)]),
-            size = 4, fontface = "bold",
+            x = X2[6], y = Y2[6], 
+            hjust = 0.1, vjust = -0.5) +
+  #Adding arrow labels for S. lewini
+  geom_text(data = arrows_df[7,], aes(label = arrows_df$variable[7]),
+            size = 6, fontface = "italic",
             lineheight = 0.6, 
-            x = X2[c(4, 6:7)], y = Y2[c(4, 6:7)], 
-            vjust = 1) +
+            x = X2[7], y = Y2[7], 
+            hjust = 0.5, vjust = -0.5) +
   #Adding arrow labels for C. melampygus, so it can be read
   geom_text(data = arrows_df[5,], aes(label = arrows_df$variable[5]),
-            size = 4, fontface = "bold",
+            size = 6, fontface = "italic",
             lineheight = 0.6, 
             x = X2[5], y = Y2[5], 
-            vjust = 1.8) +
-  xlim(-0.86, 0.58) +
-  #scale_color_grey() +
+            hjust = 1.15, vjust = -1.7) +
+  #Adding arrow labels for C. limbatus
+  geom_text(data = arrows_df[c(4),], aes(label = arrows_df$variable[c(4)]),
+            size = 6, fontface = "italic",
+            lineheight = 0.6,  
+            x = X2[c(4)], y = Y2[c(4)], 
+            hjust = 1.15, vjust = -0.8) +
+  #Adding arrow labels for M. olfax.
+  geom_text(data = arrows_df[3,], aes(label = arrows_df$variable[3]),
+            size = 6, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[3], y = Y2[3], 
+            hjust = 0.45, vjust = 1) +
+  #Adding arrow labels for L. argenticentris
+  geom_text(data = arrows_df[1,], aes(label = arrows_df$variable[1]),
+            size = 6, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[1], y = Y2[1], 
+            hjust = 0.5, vjust = 1.2) +
+  #Adding arrow labels for T. obesus
+  geom_text(data = arrows_df[2,], aes(label = arrows_df$variable[2]),
+            size = 6, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[2], y = Y2[2], 
+            hjust = 0.1, vjust = 1.2) +
+  scale_x_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.62, 0.62)) +
+  #scale_color_grey(start = 0.1, end = 0.5) +
   theme_classic() +
+  #Adding percentages for the PCO axes
+  xlab(paste0("PCO1 (", 
+              as.character(as.numeric(format(round(Bio_mat_pcoa$values$Relative_eig[1], 3)))*100), 
+              "% of total variation)")) +
+  ylab(paste0("PCO2 (", 
+              as.character(as.numeric(format(round(Bio_mat_pcoa$values$Relative_eig[2], 3)))*100), 
+              "% of total variation)")) +
   #moving legend in plot and making box around it
-  theme(legend.position = c(0.9, 0.87), 
+  theme(legend.position = c(0.85, 0.85), 
         legend.box.background = element_rect(size = 0.7, linetype = "solid", colour ="black"), 
-        legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"))
+        legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"),
+        legend.title = element_text(color = "black", size = 17),
+        legend.text = element_text(color = "black", size = 15),
+        axis.text.x = element_text(color = "black", size = 15), 
+        axis.text.y = element_text(color = "black", size = 15), 
+        axis.title.x = element_text(color = "black", size = 17),
+        axis.title.y = element_text(color = "black", size = 17), 
+        axis.line.x = element_line(color = "black", size = 0.5), 
+        axis.line.y = element_line(color = "black", size = 0.5))
+
+PCO_bio_2
+
+#Saving PCO for biomass - method and fishing status
+ggsave("Figures/PCO_bio_bioregion_fishing.tiff", 
+       PCO_bio_2, device = "tiff", dpi = 300, width = 11, height = 10)
+
 
 #remove unnecessary variables
 rm(compute_arrows, species_pcoa_arrows, arrows_df, Anchor, K, X2, Y2)
-rm(PCO_biomass, Bio_mat_pco, Bio_mat_pcoa)
+rm(PCO_biomass, Bio_mat_pco, Bio_mat_pcoa, PCO_bio_1, PCO_bio_2)
 
 
 # PERMANOVA biomass ---------------------------------------------------
@@ -1233,39 +1309,81 @@ Factors <- Biomass %>%
 str(Factors)
 
 #PERMANOVA Main effects and interactions
-adonis(Bio_mat ~ Method*Fishing*Bioregion,
-       data = Factors, method = "bray", permutations = 9999)
+perm1 <- adonis(Bio_mat ~ Method*Fishing*Bioregion,
+                data = Factors, method = "bray", permutations = 9999)
+perm1
 
 #PERMANOVA - method main effect
-adonis(Bio_mat ~ Method, data = Factors, method = "bray", permutations = 9999)
+perm2 <- adonis(Bio_mat ~ Method, data = Factors, method = "bray", permutations = 9999)
+perm2
 #Non-significant. Therefore I can exclude it from the final calculations.
 #Justification - there is no real difference between methods. 
 
 #PERMANOVA without method
-adonis(Bio_mat ~ Fishing*Bioregion,
-       data = Factors, method = "bray", permutations = 9999)
-
+perm3 <- adonis(Bio_mat ~ Fishing*Bioregion,
+                data = Factors, method = "bray", permutations = 9999)
+perm3
 
 #Betadispersion Fishing status
 dispersion <- betadisper(Bio_mat_dist, group = Factors$Fishing)
-permutest(dispersion, permutations = 9999)
+beta_perm1 <- permutest(dispersion, permutations = 9999)
+beta_perm1
 #Non-significant
 #Plotting dispersion
 plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
 
 #Betadispersion Bioregion
 dispersion <- betadisper(Bio_mat_dist, group = Factors$Bioregion)
-permutest(dispersion, permutations = 9999)
+beta_perm2 <- permutest(dispersion, permutations = 9999)
+beta_perm2
 #Significant
 #Plotting dispersion
 plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
 
 
 #Pairwise PERMANOVA to test which of the bioregions differ significantly from each other
-pairwise.adonis(Bio_mat_dist, Factors$Bioregion, perm = 9999)
+pair_adonis <- pairwise.adonis(Bio_mat_dist, Factors$Bioregion, perm = 9999)
+pair_adonis
+
+
+# Saving Biomass PERMANOVA results as excel files ---------------------------------
+
+#Excel sheet with PERMANOVA results for method, fishing, bioregion
+results <- perm1$aov.tab
+#writing excel sheet
+write.xlsx(results, "Tables/PERMANOVA_PCO_bio_met_fish_bioreg.xlsx")
+
+#Excel sheet with PERMANOVA results for method
+results <- list(perm2$aov.tab)
+#writing excel sheet
+write.xlsx(results, "Tables/PERMANOVA_PCO_biomass_met.xlsx")
+
+#Excel sheet with PERMANOVA results for fishing, bioregion
+results <- list(perm3$aov.tab)
+#writing excel sheet
+write.xlsx(results, "Tables/PERMANOVA_PCO_biomass_fish_bioreg.xlsx")
+
+
+#Excel sheet with BETADISPERSION results for fishing
+results <- list(beta_perm1$tab)
+#writing excel sheet
+write.xlsx(results, "Tables/BETADISPERSION_PCO_biomass_fish.xlsx")
+
+#Excel sheet with BETADISPERSION results for bioregion
+results <- list(beta_perm2$tab)
+#writing excel sheet
+write.xlsx(results, "Tables/BETADISPERSION_PCO_biomass_bioreg.xlsx")
+
+
+#Excel sheet with PAIRWISE PERMANOVA results for bioregion
+results <- list(pair_adonis)
+#writing excel sheet
+write.xlsx(results, "Tables/PAIR_ADONIS_PCO_biomass_bioreg.xlsx")
+
 
 #Removing unnecessary variables
-rm(dispersion, Dist_mat, Bio_mat_dist)
+rm(dispersion, Dist_mat, Bio_mat_dist, 
+   perm1, perm2, perm3, beta_perm1, beta_perm2, pair_adonis)
 
 
 # PCO plot for density ---------------------------------------------------------
@@ -1318,7 +1436,7 @@ EmptySites <- SiteInfo %>%
           mutate(Method = "UVC") %>% 
           filter(!(Site %in% UVC$Site))) %>% 
   mutate(ValidName = "Dummy") %>% 
-  mutate(N_site_sp = 1)
+  mutate(N_site_sp = 0.00001)
 #Adding the sites that have no fish to Density_sp
 Density_sp <- Density_sp %>% 
   rbind(EmptySites)
@@ -1330,10 +1448,11 @@ Den_mat <- Density_sp %>%
   select(-c(Fishing, SiteCode)) %>% 
   unite(SiteMet, Site, Method, sep = " ") %>% 
   pivot_wider(names_from = "ValidName", values_from = "N_site_sp") %>% #Making the format right for the matrix
-  mutate(Dummy = 1) %>% #Adding dummy species to all sites, to enable dissimilarity calculations later
+  mutate(Dummy = 0.00001) %>% #Adding dummy species to all sites, to enable dissimilarity calculations later
+  arrange(SiteMet) %>% #Arranging site names
   column_to_rownames("SiteMet") %>% #Making a column into row names for the matrix
   as.matrix() %>% 
-  replace_na(0)#Putting 0 instead of NA, when the species was not observed at the site.
+  replace_na(0) #Putting 0 instead of NA, when the species was not observed at the site.
 
 #Removing unnecessary variables
 rm(Den_sp_DOVS, Den_sp_UVC)
@@ -1346,11 +1465,15 @@ range(Den_mat^0.25)
 #To achieve this I am doing a fourth root transformation
 
 #Checking QQplot for density of both methods
-qqnorm(Density_sp$N_site_sp^0.25)
-qqline(Density_sp$N_site_sp^0.25, col = "red")
+qqnorm(Density_sp$N_site_sp^0.5)
+qqline(Density_sp$N_site_sp^0.5, col = "red")
 
 #Applying a 4th root transformation to matrix
-Den_mat <- Den_mat^0.25
+Den_mat <- Den_mat^0.5
+
+#Changing Dummy species data back to 1*10^-5 to avoid it influencing analysis
+Den_mat[, "Dummy"] <- 0.00001 
+
 #Calculating dissimilarity distance using vegan package, the default is Bray Curtis
 Den_mat_dist <- vegdist(Den_mat, method = "bray")
 #Create a PCoA (Principal Co-ordinates Analysis) plot
@@ -1421,7 +1544,7 @@ ggplot(PCO_density) +
 
 
 # PCO density with arrows -------------------------------------------------
-#Funcktion that computes arrows from a pcoa and a species matrix
+#Function that computes arrows from a pcoa and a species matrix
 compute_arrows <-  function(Den_mat_pcoa, Den_mat) {
   
   # Keeping the species that has the largest arrows (from former PCO plot)
@@ -1450,15 +1573,19 @@ compute_arrows <-  function(Den_mat_pcoa, Den_mat) {
 
 #computing arrows for species using the function compute_arrows
 species_pcoa_arrows <- compute_arrows(Den_mat_pcoa, Den_mat)
-#chaning vectors to data.frame before putting it in ggplot2
+#changing vectors to data.frame before putting it in ggplot2
 species_pcoa_arrows$vectors <- as.data.frame(species_pcoa_arrows$vectors)
 
 #making arrows smaller, so they fit better in the PCO
 arrows_df <- as.data.frame(species_pcoa_arrows$U/15)
 arrows_df$variable <- rownames(arrows_df)
 
+#Naming arrows with short species names
+arrows_df$variable <- c("L. argentiventris", "T. obesus", "M. olfax", "P. albomaculatus", 
+                             "H. dipterurus", "C. galapagensis", "S. lewini")
+
 #Making an anchor for the arrows
-Anchor <- c(0.53, 0.15) 
+Anchor <- c(0.7, -0.35) 
 
 #Constant adjusting the size of vectors
 K <- 1 #not actually necessary, as it is currentlt 1, but good for playing around with the code
@@ -1469,11 +1596,7 @@ Y2 <- (arrows_df$Axis.2 + Anchor[2])*K
 
 #plotting biomass, method, fishing and arrows for species with largest biomasses
 ggplot(PCO_density) + 
-  #Adding ellipse around fishing status
-  #stat_ellipse(geom = "polygon", col = "black", alpha = 0.3, 
-  #             aes(PC1, PC2, col = Fishing, fill = Fishing)) +
-  #Adding color for fishing and shapes for method
-  geom_point(aes(PC1, PC2, color = Fishing, shape = Method), size = 2.5) + 
+  geom_point(aes(PC1, PC2, color = Zone, shape = Method), size = 2.5) + 
   geom_segment(data = arrows_df, #Adding arrows
                x = Anchor[1], y = Anchor[2],
                mapping = aes(xend = X2, yend = Y2),
@@ -1513,8 +1636,23 @@ ggplot(PCO_density) +
         legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"))
 
 
+# PCO plot density for Method and Bioregion --------------------------------------------------------
+
+#Renaming methods and fishing status in PCO_biomass for better names on graph
+PCO_density <- PCO_density %>% 
+  mutate(Method = recode(Method, "DOVS" = "Stereo-DOVs")) %>% 
+  mutate(Fishing = recode(Fishing, 
+                          "Closed" = "No-take", 
+                          "Open" = "Fishing")) %>% 
+  rename(Zone = Fishing) %>% 
+  mutate(Bioregion = recode(Bioregion, 
+                            "Lejano Norte" = "Far Northern", 
+                            "Norte" = "Northern", 
+                            "Centro Sur" = "Central South-eastern", 
+                            "Oeste Fria" = "Western"))
+
 #adjusting anchor for the following plot
-Anchor <- c(0.55, 0.07) 
+Anchor <- c(0.55, -0.45)
 
 #Constant adjusting the size of vectors
 K <- 1 #not actually necessary, as it is currently 1, but good for playing around with the code
@@ -1523,162 +1661,403 @@ K <- 1 #not actually necessary, as it is currently 1, but good for playing aroun
 X2 <- (arrows_df$Axis.1 + Anchor[1])*K
 Y2 <- (arrows_df$Axis.2 + Anchor[2])*K
 
-#plotting biomass, Bioregion and fishing, along with arrows for species with largest biomasses
-ggplot(PCO_density) + 
-  #Adding ellipse around fishing status
-  #stat_ellipse(geom = "polygon", col = "black", alpha = 0.3, 
-  #             aes(PC1, PC2, col = Bioregion, fill = Bioregion)) +
+
+#plotting biomass, method, fishing and arrows for species with largest biomasses
+PCO_den_1 <- ggplot(PCO_density) + 
   #Adding color for fishing and shapes for method
-  geom_point(aes(PC1, PC2, color = Bioregion, shape = Fishing), size = 2.5) + 
+  geom_point(aes(PC1, PC2, color = Zone, shape = Method), size = 4) + 
   geom_segment(data = arrows_df, #Adding arrows
                x = Anchor[1], y = Anchor[2],
                mapping = aes(xend = X2, yend = Y2),
                arrow = arrow(length = unit(2, "mm")), #Adding arrow head
                size = 0.8) +
-  labs(title = "Principal Coordinate Ordination Density") + 
-  #Adding arrow labels for species with arrows upwards in plot
-  geom_text(data = arrows_df[c(1:3,5),], aes(label = arrows_df$variable[c(1:3,5)]),
-            size = 4, fontface = "bold",
+  #Adding arrow labels for L. argentiventris
+  geom_text(data = arrows_df[1,], aes(label = arrows_df$variable[1]),
+            size = 6, fontface = "italic",
             lineheight = 0.6, 
-            x = X2[c(1:3,5)], y = Y2[c(1:3,5)], 
-            vjust = -0.8) +
-  #Adding arrow labels for species with arrows upwards in plot
+            x = X2[1], y = Y2[1], 
+            hjust = 0.4, vjust = -0.5) +
+  #Adding arrow labels for M. olfax
+  geom_text(data = arrows_df[3,], aes(label = arrows_df$variable[3]),
+            size = 6, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[3], y = Y2[3], 
+            hjust = 0.1, vjust = -0.5) +
+  #Adding arrow labels for H. dipterurus
+  geom_text(data = arrows_df[5,], aes(label = arrows_df$variable[5]),
+            size = 6, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[5], y = Y2[5], 
+            hjust = 0.02, vjust = -0.2) +
+  #Adding arrow labels for P. albomaculatus
   geom_text(data = arrows_df[4,], aes(label = arrows_df$variable[4]),
-            size = 4, fontface = "bold",
+            size = 6, fontface = "italic",
             lineheight = 0.6, 
             x = X2[4], y = Y2[4], 
-            vjust = -0.4) +
-  #Adding arrow labels for species with arrows downwards in plot
+            hjust = 0.05, vjust = -0.2) +
+  #Adding arrow labels for T. obesus
+  geom_text(data = arrows_df[2,], aes(label = arrows_df$variable[2]),
+            size = 6, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[2], y = Y2[2], 
+            hjust = 1.15, vjust = 0.2) +
+  #Adding arrow labels for C. galapagensis
   geom_text(data = arrows_df[6,], aes(label = arrows_df$variable[6]),
-            size = 4, fontface = "bold",
+            size = 6, fontface = "italic",
             lineheight = 0.6, 
             x = X2[6], y = Y2[6], 
-            vjust = 1) +
-  #Adding arrow labels for C. melampygus, so it can be read
+            hjust = 0.05, vjust = 1.1) +
+  #Adding arrow labels for S. lewini
   geom_text(data = arrows_df[7,], aes(label = arrows_df$variable[7]),
-            size = 4, fontface = "bold",
+            size = 6, fontface = "italic",
             lineheight = 0.6, 
             x = X2[7], y = Y2[7], 
-            vjust = 1.8) +
-  xlim(-0.55, 1.12) +
-  #scale_color_grey() +
+            hjust = 0.5, vjust = 2.1) +
+  #Changing scales and color of plot
+  scale_x_continuous(breaks = seq(-0.6, 0.8, by = 0.3), limits = c(-0.6, 0.8)) +
+  scale_color_grey(start = 0.1, end = 0.5) +
   theme_classic() +
+  #Adding percentages for the PCO axes
+  xlab(paste0("PCO1 (", 
+              as.character(as.numeric(format(round(Den_mat_pcoa$values$Relative_eig[1], 3)))*100), 
+              "% of total variation)")) +
+  ylab(paste0("PCO2 (", 
+              as.character(as.numeric(format(round(Den_mat_pcoa$values$Relative_eig[2], 3)))*100), 
+              "% of total variation)")) +
   #moving legend in plot and making box around it
-  theme(legend.position = c(0.9, 0.87), 
+  theme(legend.position = c(0.9, 0.85), 
         legend.box.background = element_rect(size = 0.7, linetype = "solid", colour ="black"), 
-        legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"))
+        legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"),
+        legend.title = element_text(color = "black", size = 17),
+        legend.text = element_text(color = "black", size = 15),
+        axis.text.x = element_text(color = "black", size = 15), 
+        axis.text.y = element_text(color = "black", size = 15), 
+        axis.title.x = element_text(color = "black", size = 17),
+        axis.title.y = element_text(color = "black", size = 17), 
+        axis.line.x = element_line(color = "black", size = 0.5), 
+        axis.line.y = element_line(color = "black", size = 0.5))
+
+PCO_den_1
+
+#Saving PCO for biomass - method and fishing status
+ggsave("Figures/PCO_den_method_fishing.tiff", 
+       PCO_den_1, device = "tiff", dpi = 300, width = 11, height = 10)
 
 
-#adjusting anchor for the following plot
-Anchor <- c(0.55, 0.07) 
-
-#Constant adjusting the size of vectors
-K <- 1 #not actually necessary, as it is currently 1, but good for playing around with the code
-
-#define other coordinates for arrows
-X2 <- (arrows_df$Axis.1 + Anchor[1])*K
-Y2 <- (arrows_df$Axis.2 + Anchor[2])*K
-
-#plotting biomass, Bioregion and fishing, along with arrows for species with largest biomasses
-ggplot(PCO_density) + 
-  #Adding ellipse around fishing status
-  stat_ellipse(geom = "polygon", col = "black", alpha = 0.3, 
-               aes(PC1, PC2, col = Bioregion, fill = Bioregion)) +
+#plotting biomass, method, fishing and arrows for species with largest biomasses
+PCO_den_2 <- ggplot(PCO_density) + 
   #Adding color for fishing and shapes for method
-  geom_point(aes(PC1, PC2, color = Bioregion, shape = Fishing), size = 2.5) + 
+  geom_point(aes(PC1, PC2, color = Bioregion, shape = Zone), size = 4) + 
   geom_segment(data = arrows_df, #Adding arrows
                x = Anchor[1], y = Anchor[2],
                mapping = aes(xend = X2, yend = Y2),
                arrow = arrow(length = unit(2, "mm")), #Adding arrow head
                size = 0.8) +
-  labs(title = "Principal Coordinate Ordination Density") + 
-  #Adding arrow labels for species with arrows upwards in plot
-  geom_text(data = arrows_df[c(1:3,5),], aes(label = arrows_df$variable[c(1:3,5)]),
-            size = 4, fontface = "bold",
+  #Adding arrow labels for L. argentiventris
+  geom_text(data = arrows_df[1,], aes(label = arrows_df$variable[1]),
+            size = 6, fontface = "italic",
             lineheight = 0.6, 
-            x = X2[c(1:3,5)], y = Y2[c(1:3,5)], 
-            vjust = -0.8) +
-  #Adding arrow labels for species with arrows upwards in plot
+            x = X2[1], y = Y2[1], 
+            hjust = 0.4, vjust = -0.5) +
+  #Adding arrow labels for M. olfax
+  geom_text(data = arrows_df[3,], aes(label = arrows_df$variable[3]),
+            size = 6, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[3], y = Y2[3], 
+            hjust = 0.1, vjust = -0.5) +
+  #Adding arrow labels for H. dipterurus
+  geom_text(data = arrows_df[5,], aes(label = arrows_df$variable[5]),
+            size = 6, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[5], y = Y2[5], 
+            hjust = 0.02, vjust = -0.2) +
+  #Adding arrow labels for P. albomaculatus
   geom_text(data = arrows_df[4,], aes(label = arrows_df$variable[4]),
-            size = 4, fontface = "bold",
+            size = 6, fontface = "italic",
             lineheight = 0.6, 
             x = X2[4], y = Y2[4], 
-            vjust = -0.4) +
-  #Adding arrow labels for species with arrows downwards in plot
+            hjust = 0.05, vjust = -0.2) +
+  #Adding arrow labels for T. obesus
+  geom_text(data = arrows_df[2,], aes(label = arrows_df$variable[2]),
+            size = 6, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[2], y = Y2[2], 
+            hjust = 1.15, vjust = 0.2) +
+  #Adding arrow labels for C. galapagensis
   geom_text(data = arrows_df[6,], aes(label = arrows_df$variable[6]),
-            size = 4, fontface = "bold",
+            size = 6, fontface = "italic",
             lineheight = 0.6, 
             x = X2[6], y = Y2[6], 
-            vjust = 1) +
-  #Adding arrow labels for C. melampygus, so it can be read
+            hjust = 0.05, vjust = 1.1) +
+  #Adding arrow labels for S. lewini
   geom_text(data = arrows_df[7,], aes(label = arrows_df$variable[7]),
-            size = 4, fontface = "bold",
+            size = 6, fontface = "italic",
             lineheight = 0.6, 
             x = X2[7], y = Y2[7], 
-            vjust = 1.8) +
-  xlim(-0.8, 1.15) +
-  #scale_color_grey() +
+            hjust = 0.5, vjust = 2.1) +
+  #Changing scales and color of plot
+  scale_x_continuous(breaks = seq(-0.6, 0.8, by = 0.3), limits = c(-0.6, 0.8)) +
+  #scale_color_grey(start = 0.1, end = 0.5) +
   theme_classic() +
+  #Adding percentages for the PCO axes
+  xlab(paste0("PCO1 (", 
+              as.character(as.numeric(format(round(Den_mat_pcoa$values$Relative_eig[1], 3)))*100), 
+              "% of total variation)")) +
+  ylab(paste0("PCO2 (", 
+              as.character(as.numeric(format(round(Den_mat_pcoa$values$Relative_eig[2], 3)))*100), 
+              "% of total variation)")) +
   #moving legend in plot and making box around it
-  theme(legend.position = c(0.9, 0.87), 
+  theme(legend.position = c(0.85, 0.85), 
         legend.box.background = element_rect(size = 0.7, linetype = "solid", colour ="black"), 
-        legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"))
+        legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"),
+        legend.title = element_text(color = "black", size = 17),
+        legend.text = element_text(color = "black", size = 15),
+        axis.text.x = element_text(color = "black", size = 15), 
+        axis.text.y = element_text(color = "black", size = 15), 
+        axis.title.x = element_text(color = "black", size = 17),
+        axis.title.y = element_text(color = "black", size = 17), 
+        axis.line.x = element_line(color = "black", size = 0.5), 
+        axis.line.y = element_line(color = "black", size = 0.5))
+
+PCO_den_2
+
+#Saving PCO for biomass - method and fishing status
+ggsave("Figures/PCO_den_fishing_bioregion.tiff", 
+       PCO_den_2, device = "tiff", dpi = 300, width = 11, height = 10)
 
 
 #remove unnecessary variables
 rm(compute_arrows, species_pcoa_arrows, arrows_df, Anchor, K, X2, Y2)
-rm(PCO_density, Den_mat_pco, Den_mat_pcoa)
+rm(PCO_density, Bio_den_pco, Bio_den_pcoa, PCO_den_1, PCO_den_2)
 
 
 # PERMANOVA density -------------------------------------------------------
 
 #PERMANOVA Main effects and interactions
-adonis(Den_mat ~ Method*Fishing*Bioregion,
-       data = Factors, method = "bray", permutations = 9999)
+perm1 <- adonis(Den_mat ~ Method*Fishing*Bioregion,
+                data = Factors, method = "bray", permutations = 9999)
+perm1
 
 #PERMANOVA - method main effect
-adonis(Den_mat ~ Method, data = Factors, method = "bray", permutations = 9999)
+perm2 <- adonis(Den_mat ~ Method, data = Factors, method = "bray", permutations = 9999)
+perm2
 #Non-significant. Therefore I can exclude it from the final calculations.
 #PERMANOVA - method main effect
-adonis(Den_mat ~ Fishing, data = Factors, method = "bray", permutations = 9999)
+perm3 <- adonis(Den_mat ~ Fishing, data = Factors, method = "bray", permutations = 9999)
+perm3
 #Non-significant. Therefore I can exclude it from the final calculations.
 #Justification - there is no real difference between methods or fishing. 
 
 #PERMANOVA - Bioregion main effect
-adonis(Den_mat ~ Bioregion, data = Factors, method = "bray", permutations = 9999)
-
+perm4 <- adonis(Den_mat ~ Bioregion, data = Factors, method = "bray", permutations = 9999)
+perm4
 
 #Betadispersion Bioregion
 dispersion <- betadisper(Den_mat_dist, group = Factors$Bioregion)
-permutest(dispersion, permutations = 9999)
+beta_perm1 <- permutest(dispersion, permutations = 9999)
+beta_perm1
 #Non-significant
 #Plotting dispersion
 plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
 
 #Pairwise PERMANOVA to test which of the bioregions differ significantly from each other
-pairwise.adonis(Den_mat_dist, Factors$Bioregion, perm = 9999)
+pair_adonis <- pairwise.adonis(Den_mat_dist, Factors$Bioregion, perm = 9999)
+pair_adonis
 
 #Removing unnecessary variables
 rm(dispersion, Den_mat, Den_mat_dist)
 
 
-# Notes about code and plots ----------------------------------------------
+# Saving Density PERMANOVA results as excel files ---------------------------------
 
-#Boxplots, currently grey colored boxplots are using this code: 
-#Plot species richness with significance
-ggplot(Richness, aes(x = Fishing, y = Site_sp_500m2, fill = Method)) +
-  geom_boxplot(fatten = 3) +
-  geom_signif(comparisons = list(c("Closed", "Open")), 
-              map_signif_level = TRUE, 
-              test = "wilcox.test", 
-              test.args = list(alternative = "two.sided", var.equal = FALSE, paired = FALSE)) +
-  scale_fill_grey(start = 0.1, end = 0.5) + #For figure of all species, start = 0.1, end = 0.7.
-  scale_x_discrete(name = "Zonation") +
-  scale_y_continuous(name = "Number of species/500"~m^2) +
-  theme_classic()
-#However, the figure of all species, as mentioned in the comment, is slightly lighter in the colors, 
-#so this figure uses: 
-#scale_fill_grey(start = 0.1, end = 0.7)
+#Excel sheet with PERMANOVA results for method, fishing, bioregion
+results <- perm1$aov.tab
+#writing excel sheet
+write.xlsx(results, "Tables/PERMANOVA_PCO_den_met_fish_bioreg.xlsx")
+
+#Excel sheet with PERMANOVA results for method
+results <- list(perm2$aov.tab)
+#writing excel sheet
+write.xlsx(results, "Figures/PERMANOVA_PCO_den_met.xlsx")
+
+#Excel sheet with PERMANOVA results for fishing
+results <- list(perm3$aov.tab)
+#writing excel sheet
+write.xlsx(results, "Tables/PERMANOVA_PCO_den_fish.xlsx")
+
+#Excel sheet with PERMANOVA results for bioregion
+results <- list(perm4$aov.tab)
+#writing excel sheet
+write.xlsx(results, "Tables/PERMANOVA_PCO_den_bioreg.xlsx")
+
+
+#Excel sheet with BETADISPERSION results for bioregion
+results <- list(beta_perm1$tab)
+#writing excel sheet
+write.xlsx(results, "Tables/BETADISPERSION_PCO_den_bioreg.xlsx")
+
+
+#Excel sheet with PAIRWISE PERMANOVA results for bioregion
+results <- list(pair_adonis)
+#writing excel sheet
+write.xlsx(results, "Tables/PAIR_ADONIS_PCO_den_bioreg.xlsx")
+
+
+#Removing unnecessary variables
+rm(dispersion, Dist_mat, Bio_mat_dist, 
+   perm1, perm2, perm3, perm4, beta_perm1, pair_adonis)
+
+
+
+# Species list ------------------------------------------------------------
+#Specieslist from both UVC and DOVS
+splist <- UVC %>% 
+  select(Family, ValidName) %>% 
+  unique() %>% 
+  rbind(DOVS %>% select(Family, ValidName) %>% unique()) %>% 
+  mutate(Family = recode(Family, 
+                         "Dasyatididae" = "Dasyatidae",
+                         "Myliobatidae" = "Mobulidae")) %>% 
+  unique() %>% 
+  arrange(Family, ValidName)
+
+#write to excel table
+write.xlsx(splist, "Tables/Specieslist.xlsx")
+
+#Remove variables after use
+rm(splist)
+
+
+# Study site descriptors --------------------------------------------------
+#Descriptors to add - Site, status, N transects (replicates), Bioregion, Island
+sites <- SiteInfo %>% 
+  group_by(Site) %>% 
+  #Counting the number of transects at each site and summarising
+  summarise(Transects = sum(length(Period)), 
+            Site, Island, Bioregion, Lat, Long, Type, Fishing, Zoning) %>% 
+  unique() %>% 
+  ungroup() %>% 
+  #Renaming columns
+  rename(Latitude = Lat, Longitude = Long, Area_description = Type, Zone = Fishing) %>% 
+  #Recoding area description, zone and bioregion
+  mutate(Area_description = recode(Area_description,
+                                   "Conservation" = "Conservation (2.1)",
+                                   "Tourism" = "Tourism (2.2)", 
+                                   "Fishing" = "Fishing (2.3)", 
+                                   "Special Use" = "Special use (2.4)")) %>% 
+  mutate(Zone = recode(Zone, 
+                       "Closed" = "No-take", 
+                       "Open" = "Fishing")) %>% 
+  mutate(Bioregion = recode(Bioregion, 
+                            "Lejano Norte" = "Far Northern", 
+                            "Norte" = "Northern", 
+                            "Centro Sur" = "Central South-eastern", 
+                            "Oeste Fria" = "Western")) %>% 
+  #Changing the order of the columns and dropping Zoning
+  select(Site, Zone, Area_description, Transects, Bioregion, Island, Latitude, Longitude)
+
+#write to excel table
+write.xlsx(sites, "Tables/Site_descriptors.xlsx")
+
+#Remove variables after use
+rm(sites)
+
+
+# Summary of lengths ------------------------------------------------------
+#Notes for calculations
+#The standard error is the standard deviation divided by the square root of the sample size
+#formula SE <- sd(samples)/sqrt(sample size)
+
+#Getting length and abundance data for DOVS
+lengths_DOVS <- DOVS %>% 
+  select(ValidName, N, Length_cm, Method)
+
+#Making each row a single individual (for later mean calculations)
+lengths_DOVS <- uncount(lengths_DOVS, N) %>% #uncount from tidyverse
+  #N column is lost in uncount, so it is added here
+  mutate(N = 1) %>% 
+  #Make length to mm
+  mutate(Length_cm = Length_cm*10) %>% 
+  #Rename length to mm
+  rename(Length_mm = Length_cm) %>% 
+  #grouping by species
+  group_by(ValidName) %>% 
+  #Abundance for each species
+  mutate(N_DOVS = sum(N)) %>% 
+  #min length for each species
+  mutate(minFL_DOVS = min(Length_mm)) %>% 
+  #max length for each species
+  mutate(maxFL_DOVS = max(Length_mm)) %>% 
+  #mean length for each species
+  mutate(meanFL_DOVS = mean(Length_mm)) %>% 
+  #Standard error of the mean
+  mutate(SE_DOVS = sd(Length_mm)/sqrt(sum(N))) %>% 
+  #Removing columns that should not be in the final table
+  select(-c(N, Length_mm, Method)) %>% 
+  #Getting unique results
+  unique() %>% 
+  ungroup()
+
+#rounding min, max and mean lengths to 0 decimals
+lengths_DOVS[,3:5] <- round(lengths_DOVS[,3:5], digits = 0)
+#rounding SE to 2 decimals
+lengths_DOVS[,6] <- round(lengths_DOVS[,6], digits = 2)
+
+
+#Getting length and abundance data for UVC
+lengths_UVC <- UVC %>% 
+  select(ValidName, N, Length_cm, Method)
+
+#Making each row a single individual (for later mean calculations)
+lengths_UVC <- uncount(lengths_UVC, N) %>% #uncount from tidyverse
+  #N column is lost in uncount, so it is added here
+  mutate(N = 1) %>% 
+  #Make length to mm
+  mutate(Length_cm = Length_cm*10) %>% 
+  #Rename length to mm
+  rename(Length_mm = Length_cm) %>% 
+  #grouping by species
+  group_by(ValidName) %>% 
+  #Abundance for each species
+  mutate(N_UVC = sum(N)) %>% 
+  #min length for each species
+  mutate(minTL_UVC = min(Length_mm)) %>% 
+  #max length for each species
+  mutate(maxTL_UVC = max(Length_mm)) %>% 
+  #mean length for each species
+  mutate(meanTL_UVC = mean(Length_mm)) %>% 
+  #Standard error of the mean
+  mutate(SE_UVC = sd(Length_mm)/sqrt(sum(N))) %>% 
+  #Removing columns that should not be in the final table
+  select(-c(N, Length_mm, Method)) %>% 
+  #Getting unique results
+  unique() %>% 
+  ungroup()
+
+#rounding mean length to 0 decimals
+lengths_UVC[,5] <- round(lengths_UVC[,5], digits = 0)
+#rounding SE to 2 decimals
+lengths_UVC[,6] <- round(lengths_UVC[,6], digits = 2)
+
+
+#combining lengths in one dataframe
+lengths <- lengths_UVC %>% 
+  left_join(lengths_DOVS, by = "ValidName") %>% 
+  #Changing order of columns
+  select(ValidName, N_DOVS, N_UVC, minFL_DOVS, minTL_UVC, maxFL_DOVS, maxTL_UVC, 
+         meanFL_DOVS, SE_DOVS, meanTL_UVC, SE_UVC) %>% 
+  #arraning alphabetically
+  arrange(ValidName) %>% 
+  #renaming species column
+  rename(Species = ValidName)
+
+
+#write to excel table
+write.xlsx(lengths, "Tables/Summary_lengths.xlsx")
+
+#Remove variables after use
+rm(lengths_DOVS, lengths_UVC, lengths)
+
 
 # Extra tables and figures ------------------------------------------------
 #Species list for the study - all the species are present in the UVC data

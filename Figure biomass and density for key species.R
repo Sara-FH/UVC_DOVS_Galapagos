@@ -30,7 +30,7 @@ plot1 <- Biomass_sp %>%
   #Selecting species of interest using spInt
   right_join(spInt, by = "ValidName") %>% 
   #Replacing NAs in biomass with zeroes
-  mutate(Biomass_site_sp = replace_na(Biomass_site_sp, 0)) %>%
+  mutate(Kg_site_sp = replace_na(Kg_site_sp, 0)) %>%
   #Removing fishing status
   select(-Fishing) %>%
   #Joining fishing status to get correct info
@@ -54,15 +54,15 @@ fig_list <- list()
 #Creating combined plots for density and biomass per species
 for(i in seq_along(spInt$ValidName)){
   bio <- plot1 %>% filter(ValidName == spInt$ValidName[i]) 
-  Pbio <- adonis(Biomass_site_sp ~ Method*Fishing, data = bio, permutations = 9999, method = "euclidean")
+  Pbio <- adonis(Kg_site_sp^0.25 ~ Method*Fishing, data = bio, permutations = 9999, method = "euclidean")
   f1 <- bio %>%
     #Create a plot
     #log10+1 applied to biomass so it can be seen better
-    ggplot(aes(x = Fishing, y = log10(Biomass_site_sp+1), fill = Method))+
+    ggplot(aes(x = Fishing, y = log10(Kg_site_sp+1), fill = Method))+
     geom_boxplot(width = 0.8) + #outlier.size changes the size of the dots representing outliers
     #To access p value for PERMANOVA comparison for fishing status use: Pbio$aov.tab$`Pr(>F)`[2]
     geom_signif(annotations = Pbio$aov.tab$`Pr(>F)`[2], 
-                y_position = max(log10(bio$Biomass_site_sp+1))*1.1, 
+                y_position = max(log10(bio$Kg_site_sp+1))*1.1, 
                 xmin = "Closed", xmax = "Open", textsize = 4, 
                 vjust = -0.2) +
     scale_x_discrete(expand = c(0.5, 0)) +
@@ -80,7 +80,7 @@ for(i in seq_along(spInt$ValidName)){
   
   #Density
   den <- plot2 %>% filter(ValidName == spInt$ValidName[i])
-  Pden <- adonis(N_site_sp ~ Method*Fishing, data = den, permutations = 9999, method = "euclidean")
+  Pden <- adonis(N_site_sp^0.5 ~ Method*Fishing, data = den, permutations = 9999, method = "euclidean")
   f2 <- den %>%
     #Create a plot
     ggplot(aes(x = Fishing, y = N_site_sp, fill = Method))+
@@ -138,7 +138,7 @@ plot1 <- Biomass_sp %>%
   #Selecting species of interest using spInt
   right_join(spInt, by = "ValidName") %>% 
   #Replacing NAs in biomass with zeroes
-  mutate(Biomass_site_sp = replace_na(Biomass_site_sp, 0)) %>%
+  mutate(Kg_site_sp = replace_na(Kg_site_sp, 0)) %>%
   #Removing fishing status
   select(-Fishing) %>%
   #Joining fishing status to get correct info
@@ -167,15 +167,15 @@ perm_den_list <- list()
 #Creating combined plots for density and biomass per species
 for(i in seq_along(spInt$ValidName)){
   bio <- plot1 %>% filter(ValidName == spInt$ValidName[i]) 
-  Pbio <- adonis(Biomass_site_sp^0.25 ~ Method*Fishing, data = bio, permutations = 9999, method = "euclidean")
+  Pbio <- adonis(Kg_site_sp^0.25 ~ Method*Fishing, data = bio, permutations = 9999, method = "euclidean")
   #To access p value for PERMANOVA comparison for fishing status use: Pbio$aov.tab$`Pr(>F)`[2]
   f1 <- bio %>%
     #Create a plot
     #log10+1 applied to biomass so it can be seen better
-    ggplot(aes(x = Fishing, y = log10(Biomass_site_sp+1), fill = Method))+
+    ggplot(aes(x = Fishing, y = log10(Kg_site_sp+1), fill = Method))+
     geom_boxplot(width = 0.8) + #outlier.size changes the size of the dots representing outliers
     geom_signif(annotations = paste0("p = ", Pbio$aov.tab$`Pr(>F)`[2]), 
-                y_position = max(log10(bio$Biomass_site_sp+1))*1.1, 
+                y_position = max(log10(bio$Kg_site_sp+1))*1.1, 
                 xmin = "Closed", xmax = "Open", textsize = 4, 
                 vjust = -0.2) +
     scale_x_discrete(expand = c(0.5, 0), 
@@ -194,7 +194,7 @@ for(i in seq_along(spInt$ValidName)){
   
   #Density
   den <- plot2 %>% filter(ValidName == spInt$ValidName[i])
-  Pden <- adonis(N_site_sp ~ Method*Fishing, data = den, permutations = 9999, method = "euclidean")
+  Pden <- adonis(N_site_sp^0.5 ~ Method*Fishing, data = den, permutations = 9999, method = "euclidean")
   f2 <- den %>%
     #Create a plot
     ggplot(aes(x = Fishing, y = N_site_sp, fill = Method))+
@@ -257,7 +257,7 @@ names(results) <- perm_bio_cols
 #Format ready for excel
 results <- do.call(rbind, results)
 #writing 
-write.xlsx(results, "Figures/PERMANOVA_bio_1.xlsx")
+write.xlsx(results, "Tables/PERMANOVA_bio_spInt_1.xlsx")
 
 
 #Making results from PERMANOVA biomass part 1 ready for excel
@@ -271,7 +271,7 @@ names(results) <- perm_den_cols
 #Format ready for excel
 results <- do.call(rbind, results)
 #writing 
-write.xlsx(results, "Figures/PERMANOVA_den_1.xlsx")
+write.xlsx(results, "Tables/PERMANOVA_den_spInt_1.xlsx")
 
 
 # Splitting the figure part 2 ----------------------------------------------
@@ -288,7 +288,7 @@ plot1 <- Biomass_sp %>%
   #Selecting species of interest using spInt
   right_join(spInt, by = "ValidName") %>% 
   #Replacing NAs in biomass with zeroes
-  mutate(Biomass_site_sp = replace_na(Biomass_site_sp, 0)) %>%
+  mutate(Kg_site_sp = replace_na(Kg_site_sp, 0)) %>%
   #Removing fishing status
   select(-Fishing) %>%
   #Joining fishing status to get correct info
@@ -317,15 +317,15 @@ perm_den_list <- list()
 #Creating combined plots for density and biomass per species
 for(i in seq_along(spInt$ValidName)){
   bio <- plot1 %>% filter(ValidName == spInt$ValidName[i]) 
-  Pbio <- adonis(Biomass_site_sp^0.25 ~ Method*Fishing, data = bio, permutations = 9999, method = "euclidean")
+  Pbio <- adonis(Kg_site_sp^0.25 ~ Method*Fishing, data = bio, permutations = 9999, method = "euclidean")
   #To access p value for PERMANOVA comparison for fishing status use: Pbio$aov.tab$`Pr(>F)`[2]
   f1 <- bio %>%
     #Create a plot
     #log10+1 applied to biomass so it can be seen better
-    ggplot(aes(x = Fishing, y = log10(Biomass_site_sp+1), fill = Method))+
+    ggplot(aes(x = Fishing, y = log10(Kg_site_sp+1), fill = Method))+
     geom_boxplot(width = 0.8) + #outlier.size changes the size of the dots representing outliers
     geom_signif(annotations = Pbio$aov.tab$`Pr(>F)`[2], 
-                y_position = max(log10(bio$Biomass_site_sp+1))*1.1, 
+                y_position = max(log10(bio$Kg_site_sp+1))*1.1, 
                 xmin = "Closed", xmax = "Open", textsize = 4, 
                 vjust = -0.2) +
     scale_x_discrete(expand = c(0.5, 0)) +
@@ -343,7 +343,7 @@ for(i in seq_along(spInt$ValidName)){
   
   #Density
   den <- plot2 %>% filter(ValidName == spInt$ValidName[i])
-  Pden <- adonis(N_site_sp ~ Method*Fishing, data = den, permutations = 9999, method = "euclidean")
+  Pden <- adonis(N_site_sp^0.5 ~ Method*Fishing, data = den, permutations = 9999, method = "euclidean")
   f2 <- den %>%
     #Create a plot
     ggplot(aes(x = Fishing, y = N_site_sp, fill = Method))+
@@ -405,7 +405,7 @@ names(results) <- perm_bio_cols
 #Format ready for excel
 results <- do.call(rbind, results)
 #writing 
-write.xlsx(results, "Figures/PERMANOVA_bio_2.xlsx")
+write.xlsx(results, "Tables/PERMANOVA_bio_spInt_2.xlsx")
 
 
 #Making results from PERMANOVA biomass part 2 ready for excel
@@ -419,7 +419,7 @@ names(results) <- perm_den_cols
 #Format ready for excel
 results <- do.call(rbind, results)
 #writing 
-write.xlsx(results, "Figures/PERMANOVA_den_2.xlsx")
+write.xlsx(results, "Tables/PERMANOVA_den_spInt_2.xlsx")
 
 
 #Remove variables from Figures
