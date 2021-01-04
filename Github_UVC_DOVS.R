@@ -1035,7 +1035,7 @@ compute_arrows <-  function(Bio_mat_pcoa, Bio_mat) {
   # Keeping the species that has the largest arrows (from former PCO plot)
   Bio_mat = Bio_mat[ ,c("Lutjanus argentiventris", "Triaenodon obesus", "Mycteroperca olfax", 
                         "Carcharhinus limbatus", "Caranx melampygus", "Carcharhinus galapagensis", 
-                        "Sphyrna lewini")]
+                        "Sphyrna lewini", "Lutjanus novemfasciatus")]
   
   n <- nrow(Bio_mat)
   points.stand <- scale(Bio_mat_pcoa$vectors)
@@ -1068,7 +1068,7 @@ arrows_df$variable <- rownames(arrows_df)
 #Naming arrows with short species names
 arrows_df$variable <- c("L. argentiventris", "T. obesus", "M. olfax", 
                         "C. limbatus", "C. melampygus", "C. galapagensis", 
-                        "S. lewini")
+                        "S. lewini", "L. novemfasciatus")
 
 #Making an anchor for the arrows
 Anchor <- c(0.45,-0.4) #upper right corner
@@ -1136,7 +1136,7 @@ PCO_bio_1 <- ggplot(PCO_biomass) +
             size = 6, fontface = "italic",
             lineheight = 0.6, 
             x = X2[6], y = Y2[6], 
-            hjust = 0.1, vjust = -0.5) +
+            hjust = 0.1, vjust = -0.4) +
   #Adding arrow labels for S. lewini
   geom_text(data = arrows_df[7,], aes(label = arrows_df$variable[7]),
             size = 6, fontface = "italic",
@@ -1148,13 +1148,13 @@ PCO_bio_1 <- ggplot(PCO_biomass) +
             size = 6, fontface = "italic",
             lineheight = 0.6, 
             x = X2[5], y = Y2[5], 
-            hjust = 1.15, vjust = -1.7) +
+            hjust = 1.2, vjust = -1.7) +
   #Adding arrow labels for C. limbatus
   geom_text(data = arrows_df[c(4),], aes(label = arrows_df$variable[c(4)]),
             size = 6, fontface = "italic",
             lineheight = 0.6,  
             x = X2[c(4)], y = Y2[c(4)], 
-            hjust = 1.15, vjust = -0.8) +
+            hjust = 1.2, vjust = -0.8) +
   #Adding arrow labels for M. olfax.
   geom_text(data = arrows_df[3,], aes(label = arrows_df$variable[3]),
             size = 6, fontface = "italic",
@@ -1173,7 +1173,15 @@ PCO_bio_1 <- ggplot(PCO_biomass) +
             lineheight = 0.6, 
             x = X2[2], y = Y2[2], 
             hjust = 0.1, vjust = 1.2) +
-  scale_x_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.62, 0.62)) +
+  #Adding arrow labels for L. novemfasciatus
+  geom_text(data = arrows_df[8,], aes(label = arrows_df$variable[8]),
+            size = 6, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[8], y = Y2[8], 
+            hjust = 0.9, vjust = 1) +
+  #Changing axes and color
+  scale_x_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.6, 0.6)) +
+  scale_y_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.6, 0.6)) +
   scale_color_grey(start = 0.1, end = 0.5) +
   theme_classic() +
   #Adding percentages for the PCO axes
@@ -1221,7 +1229,7 @@ PCO_bio_2 <- ggplot(PCO_biomass) +
             size = 6, fontface = "italic",
             lineheight = 0.6, 
             x = X2[6], y = Y2[6], 
-            hjust = 0.1, vjust = -0.5) +
+            hjust = 0.1, vjust = -0.4) +
   #Adding arrow labels for S. lewini
   geom_text(data = arrows_df[7,], aes(label = arrows_df$variable[7]),
             size = 6, fontface = "italic",
@@ -1233,13 +1241,13 @@ PCO_bio_2 <- ggplot(PCO_biomass) +
             size = 6, fontface = "italic",
             lineheight = 0.6, 
             x = X2[5], y = Y2[5], 
-            hjust = 1.15, vjust = -1.7) +
+            hjust = 1.2, vjust = -1.7) +
   #Adding arrow labels for C. limbatus
   geom_text(data = arrows_df[c(4),], aes(label = arrows_df$variable[c(4)]),
             size = 6, fontface = "italic",
             lineheight = 0.6,  
             x = X2[c(4)], y = Y2[c(4)], 
-            hjust = 1.15, vjust = -0.8) +
+            hjust = 1.2, vjust = -0.8) +
   #Adding arrow labels for M. olfax.
   geom_text(data = arrows_df[3,], aes(label = arrows_df$variable[3]),
             size = 6, fontface = "italic",
@@ -1258,7 +1266,15 @@ PCO_bio_2 <- ggplot(PCO_biomass) +
             lineheight = 0.6, 
             x = X2[2], y = Y2[2], 
             hjust = 0.1, vjust = 1.2) +
-  scale_x_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.62, 0.62)) +
+  #Adding arrow labels for L. novemfasciatus
+  geom_text(data = arrows_df[8,], aes(label = arrows_df$variable[8]),
+            size = 6, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[8], y = Y2[8], 
+            hjust = 0.9, vjust = 1) +
+  #Changing axes and color
+  scale_x_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.6, 0.6)) +
+  scale_y_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.6, 0.6)) +
   #scale_color_grey(start = 0.1, end = 0.5) +
   theme_classic() +
   #Adding percentages for the PCO axes
@@ -1549,8 +1565,7 @@ compute_arrows <-  function(Den_mat_pcoa, Den_mat) {
   
   # Keeping the species that has the largest arrows (from former PCO plot)
   Den_mat = Den_mat[ ,c("Lutjanus argentiventris", "Triaenodon obesus", "Mycteroperca olfax", 
-                        "Paralabrax albomaculatus", "Hypanus dipterurus", "Carcharhinus galapagensis", 
-                        "Sphyrna lewini")]
+                        "Hypanus dipterurus", "Carcharhinus galapagensis", "Sphyrna lewini")]
   
   n <- nrow(Den_mat)
   points.stand <- scale(Den_mat_pcoa$vectors)
@@ -1581,7 +1596,7 @@ arrows_df <- as.data.frame(species_pcoa_arrows$U/15)
 arrows_df$variable <- rownames(arrows_df)
 
 #Naming arrows with short species names
-arrows_df$variable <- c("L. argentiventris", "T. obesus", "M. olfax", "P. albomaculatus", 
+arrows_df$variable <- c("L. argentiventris", "T. obesus", "M. olfax", 
                              "H. dipterurus", "C. galapagensis", "S. lewini")
 
 #Making an anchor for the arrows
@@ -1596,7 +1611,7 @@ Y2 <- (arrows_df$Axis.2 + Anchor[2])*K
 
 #plotting biomass, method, fishing and arrows for species with largest biomasses
 ggplot(PCO_density) + 
-  geom_point(aes(PC1, PC2, color = Zone, shape = Method), size = 2.5) + 
+  geom_point(aes(PC1, PC2, color = Fishing, shape = Method), size = 2.5) + 
   geom_segment(data = arrows_df, #Adding arrows
                x = Anchor[1], y = Anchor[2],
                mapping = aes(xend = X2, yend = Y2),
@@ -1652,7 +1667,7 @@ PCO_density <- PCO_density %>%
                             "Oeste Fria" = "Western"))
 
 #adjusting anchor for the following plot
-Anchor <- c(0.55, -0.45)
+Anchor <- c(0.5, -0.05)
 
 #Constant adjusting the size of vectors
 K <- 1 #not actually necessary, as it is currently 1, but good for playing around with the code
@@ -1676,45 +1691,40 @@ PCO_den_1 <- ggplot(PCO_density) +
             size = 6, fontface = "italic",
             lineheight = 0.6, 
             x = X2[1], y = Y2[1], 
-            hjust = 0.4, vjust = -0.5) +
+            hjust = 0.5, vjust = 1) +
   #Adding arrow labels for M. olfax
   geom_text(data = arrows_df[3,], aes(label = arrows_df$variable[3]),
             size = 6, fontface = "italic",
             lineheight = 0.6, 
             x = X2[3], y = Y2[3], 
-            hjust = 0.1, vjust = -0.5) +
+            hjust = 0.1, vjust = 1.2) +
   #Adding arrow labels for H. dipterurus
-  geom_text(data = arrows_df[5,], aes(label = arrows_df$variable[5]),
-            size = 6, fontface = "italic",
-            lineheight = 0.6, 
-            x = X2[5], y = Y2[5], 
-            hjust = 0.02, vjust = -0.2) +
-  #Adding arrow labels for P. albomaculatus
   geom_text(data = arrows_df[4,], aes(label = arrows_df$variable[4]),
             size = 6, fontface = "italic",
             lineheight = 0.6, 
             x = X2[4], y = Y2[4], 
-            hjust = 0.05, vjust = -0.2) +
+            hjust = 0.1, vjust = -0.2) +
   #Adding arrow labels for T. obesus
   geom_text(data = arrows_df[2,], aes(label = arrows_df$variable[2]),
             size = 6, fontface = "italic",
             lineheight = 0.6, 
-            x = X2[2], y = Y2[2], 
-            hjust = 1.15, vjust = 0.2) +
+            x = X2[2], y = Y2[2],
+            hjust = 0.45, vjust = 3.2) +
+            #hjust = 1.3, vjust = 0.5) +
   #Adding arrow labels for C. galapagensis
+  geom_text(data = arrows_df[5,], aes(label = arrows_df$variable[5]),
+            size = 6, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[5], y = Y2[5], 
+            hjust = 0.05, vjust = -0.3) +
+  #Adding arrow labels for S. lewini
   geom_text(data = arrows_df[6,], aes(label = arrows_df$variable[6]),
             size = 6, fontface = "italic",
             lineheight = 0.6, 
             x = X2[6], y = Y2[6], 
-            hjust = 0.05, vjust = 1.1) +
-  #Adding arrow labels for S. lewini
-  geom_text(data = arrows_df[7,], aes(label = arrows_df$variable[7]),
-            size = 6, fontface = "italic",
-            lineheight = 0.6, 
-            x = X2[7], y = Y2[7], 
-            hjust = 0.5, vjust = 2.1) +
+            hjust = 0.5, vjust = -0.3) +
   #Changing scales and color of plot
-  scale_x_continuous(breaks = seq(-0.6, 0.8, by = 0.3), limits = c(-0.6, 0.8)) +
+  scale_x_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.6, 0.65)) +
   scale_color_grey(start = 0.1, end = 0.5) +
   theme_classic() +
   #Adding percentages for the PCO axes
@@ -1758,45 +1768,40 @@ PCO_den_2 <- ggplot(PCO_density) +
             size = 6, fontface = "italic",
             lineheight = 0.6, 
             x = X2[1], y = Y2[1], 
-            hjust = 0.4, vjust = -0.5) +
+            hjust = 0.5, vjust = 1) +
   #Adding arrow labels for M. olfax
   geom_text(data = arrows_df[3,], aes(label = arrows_df$variable[3]),
             size = 6, fontface = "italic",
             lineheight = 0.6, 
             x = X2[3], y = Y2[3], 
-            hjust = 0.1, vjust = -0.5) +
+            hjust = 0.1, vjust = 1.2) +
   #Adding arrow labels for H. dipterurus
-  geom_text(data = arrows_df[5,], aes(label = arrows_df$variable[5]),
-            size = 6, fontface = "italic",
-            lineheight = 0.6, 
-            x = X2[5], y = Y2[5], 
-            hjust = 0.02, vjust = -0.2) +
-  #Adding arrow labels for P. albomaculatus
   geom_text(data = arrows_df[4,], aes(label = arrows_df$variable[4]),
             size = 6, fontface = "italic",
             lineheight = 0.6, 
             x = X2[4], y = Y2[4], 
-            hjust = 0.05, vjust = -0.2) +
+            hjust = 0.1, vjust = -0.2) +
   #Adding arrow labels for T. obesus
   geom_text(data = arrows_df[2,], aes(label = arrows_df$variable[2]),
             size = 6, fontface = "italic",
             lineheight = 0.6, 
-            x = X2[2], y = Y2[2], 
-            hjust = 1.15, vjust = 0.2) +
+            x = X2[2], y = Y2[2],
+            hjust = 0.45, vjust = 3.2) +
+  #hjust = 1.3, vjust = 0.5) +
   #Adding arrow labels for C. galapagensis
+  geom_text(data = arrows_df[5,], aes(label = arrows_df$variable[5]),
+            size = 6, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[5], y = Y2[5], 
+            hjust = 0.05, vjust = -0.3) +
+  #Adding arrow labels for S. lewini
   geom_text(data = arrows_df[6,], aes(label = arrows_df$variable[6]),
             size = 6, fontface = "italic",
             lineheight = 0.6, 
             x = X2[6], y = Y2[6], 
-            hjust = 0.05, vjust = 1.1) +
-  #Adding arrow labels for S. lewini
-  geom_text(data = arrows_df[7,], aes(label = arrows_df$variable[7]),
-            size = 6, fontface = "italic",
-            lineheight = 0.6, 
-            x = X2[7], y = Y2[7], 
-            hjust = 0.5, vjust = 2.1) +
+            hjust = 0.5, vjust = -0.3) +
   #Changing scales and color of plot
-  scale_x_continuous(breaks = seq(-0.6, 0.8, by = 0.3), limits = c(-0.6, 0.8)) +
+  scale_x_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.6, 0.65)) +
   #scale_color_grey(start = 0.1, end = 0.5) +
   theme_classic() +
   #Adding percentages for the PCO axes
@@ -1828,7 +1833,7 @@ ggsave("Figures/PCO_den_fishing_bioregion.tiff",
 
 #remove unnecessary variables
 rm(compute_arrows, species_pcoa_arrows, arrows_df, Anchor, K, X2, Y2)
-rm(PCO_density, Bio_den_pco, Bio_den_pcoa, PCO_den_1, PCO_den_2)
+rm(PCO_density, Den_mat_pco, Den_mat_pcoa, PCO_den_1, PCO_den_2)
 
 
 # PERMANOVA density -------------------------------------------------------
@@ -1904,8 +1909,7 @@ write.xlsx(results, "Tables/PAIR_ADONIS_PCO_den_bioreg.xlsx")
 
 
 #Removing unnecessary variables
-rm(dispersion, Dist_mat, Bio_mat_dist, 
-   perm1, perm2, perm3, perm4, beta_perm1, pair_adonis)
+rm(perm1, perm2, perm3, perm4, beta_perm1, pair_adonis)
 
 
 
@@ -2060,10 +2064,110 @@ rm(lengths_DOVS, lengths_UVC, lengths)
 
 
 # Extra tables and figures ------------------------------------------------
-#Species list for the study - all the species are present in the UVC data
-#This is because the species from the DOVS data that are not in UVC have been removed.
-Specieslist <- UVC %>% select(Family, Genus, ValidName) %>% unique()
 
-rm(Specieslist)
+# Biomass PCO short names -------------------------------------------------
+### Run the main code Github_UVC_DOVS until "PCO plot for biomass"
+
+#New names for BIOMASS PCO plot
+new_names <- as.data.frame(rep(1:74, each = 2)) %>% 
+  rename(numbers = "rep(1:74, each = 2)") %>%
+  mutate(letters = rep(c("D", "U"), each = 1, length.out = 74*2)) %>% 
+  unite(name, c(numbers,letters), sep = "")
+
+#Making matrix for dissimilarity calculation DOVS and UVC
+Bio_mat <- Biomass_sp %>% #Based on biomass calculations for individual species at each site
+  select(-c(Fishing, SiteCode)) %>% 
+  #Adding the Method to the site name (I split them later for the plot)
+  unite(SiteMet, Site, Method, sep = " ") %>% 
+  #Making the format right for the matrix
+  pivot_wider(names_from = "ValidName", values_from = "Kg_site_sp") %>% 
+  #Adding dummy species to all sites, to enable dissimilarity calculations later
+  #As I have some empty sites, where it is important to see how the methods UVC and DOVS differ
+  mutate(Dummy = 0.00001) %>% 
+  arrange(SiteMet) %>% #Arranging site names
+  #Adding new shorter names
+  bind_cols(new_names) %>%
+  select(name, everything()) %>% 
+  #removing SiteMethod
+  select(-SiteMet) %>% 
+  column_to_rownames("name") %>% #Making a column into row names for the matrix
+  as.matrix() %>% 
+  replace_na(0)  #Putting 0 instead of NA, when the species was not observed at a site
+
+#Applying a 4th root transformation to biomass data - and making a matrix
+Bio_mat <- Bio_mat^0.25 
+
+#Changing Dummy species data back to 1*10^-5 to avoid it influencing analysis
+Bio_mat[, "Dummy"] <- 0.00001 
+
+#Calculating dissimilarity distance using vegan package, method bray curtis
+Bio_mat_dist <- vegdist(Bio_mat, method = "bray")
+#Create a weighted Principal Coordinates Analysis plot
+Bio_mat_pco <- wcmdscale(Bio_mat_dist, eig = TRUE) #returns matrix of scores scaled by eigenvalues
+#Show plot
+plot(Bio_mat_pco, type = "points") #Add type points to remove labels
+
+# Principal coordinate analysis and simple ordination plot
+Bio_mat_pcoa <- pcoa(Bio_mat_dist)
+# barplot of eigenvalues 1-10
+barplot(Bio_mat_pcoa$values$Relative_eig[1:10])
+#Biplot with arrows
+biplot(Bio_mat_pcoa, Bio_mat)
+#The principal coordinates analysis from pcoa function from the Ape package is similar to the 
+#weighted principal coordinates analysis plot from wcmdscale 
+
+
+# Density PCO short names -------------------------------------------------
+### Run the main code Github_UVC_DOVS until "PCO plot for density"
+
+#Making Matrix for density of species
+Den_mat <- Density_sp %>% 
+  select(-c(Fishing, SiteCode)) %>% 
+  unite(SiteMet, Site, Method, sep = " ") %>% 
+  pivot_wider(names_from = "ValidName", values_from = "N_site_sp") %>% #Making the format right for the matrix
+  mutate(Dummy = 0.00001) %>% #Adding dummy species to all sites, to enable dissimilarity calculations later
+  arrange(SiteMet) %>% #Arranging site names
+  #Adding new shorter names
+  bind_cols(new_names) %>%
+  select(name, everything()) %>% 
+  #removing SiteMethod
+  select(-SiteMet) %>% 
+  column_to_rownames("name") %>% #Making a column into row names for the matrix
+  as.matrix() %>% 
+  replace_na(0)  #Putting 0 instead of NA, when the species was not observed at a site
+
+#Removing unnecessary variables
+rm(Den_sp_DOVS, Den_sp_UVC)
+
+#Checking ranges for transformations and no transformation
+range(Den_mat)
+range(Den_mat^0.5)
+range(Den_mat^0.25)
+#I have read online that I should get in the 0-10 range
+#To achieve this I am doing a fourth root transformation
+
+#Checking QQplot for density of both methods
+qqnorm(Density_sp$N_site_sp^0.5)
+qqline(Density_sp$N_site_sp^0.5, col = "red")
+
+#Applying a 4th root transformation to matrix
+Den_mat <- Den_mat^0.5
+
+#Changing Dummy species data back to 1*10^-5 to avoid it influencing analysis
+Den_mat[, "Dummy"] <- 0.00001 
+
+#Calculating dissimilarity distance using vegan package, the default is Bray Curtis
+Den_mat_dist <- vegdist(Den_mat, method = "bray")
+#Create a PCoA (Principal Co-ordinates Analysis) plot
+Den_mat_pco <- wcmdscale(Den_mat_dist, eig = TRUE) #returns matrix of scores scaled by eigenvalues
+#Show plot
+plot(Den_mat_pco, type = "points") #Add type points to remove labels
+
+#Principal coordinate analysis and simple ordination plot
+Den_mat_pcoa <- pcoa(Den_mat_dist)
+#Biplot with arrows
+biplot(Den_mat_pcoa, Den_mat)
+
+
 
 
