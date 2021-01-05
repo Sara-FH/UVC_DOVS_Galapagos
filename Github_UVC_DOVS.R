@@ -12,7 +12,7 @@ library(tidyverse)
 library(data.table)
 library(vegan)
 library(chron)
-library(xlsx)
+library(openxlsx) # Changed from library(xlsx)
 library(ggplot2)
 library(ape) #For principal coordinates analysis
 library(ggsignif) #Shows level of significance in ggplots
@@ -236,6 +236,10 @@ UVC <- UVC %>% filter(!(Site == "Isabela Este 5" & Period == "T3"))
 #Making list of unique species in UVC data, to filter species in DOVS data
 SpeciesUVC <- UVC$ValidName %>% unique()
 
+#Uncounting UVC data, to keep data format similar in DOVS and UVC
+UVC <- UVC %>% 
+  uncount(., N) %>% #uncounting N to have one individual per row
+  mutate(N = 1) #Adding column for N, as it is removed by uncount
 
 # Tidying up DOVS data -----------------------------------------------------
 #Tidying up DOVS data - Saving the clean data set as a different variable - DFA
@@ -277,7 +281,7 @@ DOVS <- DOVS_FullDB %>%
   #inner_join(SiteInfo %>% select(-UVC), by = c("Site" = "Site")) %>% 
   #add siteinfo - is innerjoin better than left_join??
   left_join(SiteInfo %>% select(-c(UVC, DOVS, Depth)), by = c("Site" = "Site", "Period" = "Period")) 
-  #I have decided to keep the site column, so I can remember what the sitecode stands for
+#I have decided to keep the site column, so I can remember what the sitecode stands for
 
 #Remove variables that are no longer needed
 rm(DOVS_FullDB)
@@ -356,6 +360,73 @@ DOVS <- DOVS %>% #Using data from DOVS
 rm(TooLarge_DOVS, TooLarge_UVC)
 
 
+# Quality control and adding NA lengths DOVS ----------------------------------------------------------
+#Quality Control
+#Prior to calculating biomass we need our DOVS measurements to meet two requirements
+#1. RMS <= 50 (we have raised it from 20, as some of the videos are very blurry and this affects RMS)
+#2. Precision <= 10% estimated Length
+
+#To live up to the precision requirements, I have in the following lines of code removed length measurements
+#that do not live up to the length requirements. Afterwards I have replaced them with average lengths for
+#each species, based on the length measurements with good precision
+
+#Removing lengths that have bad precision (worse than 10% of length)
+DOVS <- DOVS %>% 
+  #When precision is worse than 10% of length, I remove the length so an average can be calculated
+  mutate(Length_mm = ifelse(!Precision_mm < Length_mm*0.1, NA, Length_mm)) %>% 
+  #When precision is worse than 10% of length, the length is removed
+  #and when there are no lengths, I remove the precision as well
+  mutate(Precision_mm = ifelse(is.na(Length_mm), 0, Precision_mm)) %>% 
+  #I also remove RMS, when the length is removed
+  mutate(RMS_mm = ifelse(is.na(Length_mm), 0, RMS_mm)) %>% 
+  uncount(., N) %>% #uncount from tidyverse to expand N to one row per individual
+  #N column is lost in uncount, so it is added here
+  mutate(N = 1) %>% 
+  #group Site, Period and ValidName
+  group_by(Site, ValidName) %>% 
+  #Making column with mean length of species per site
+  mutate(Length_site = mean(Length_mm, na.rm = TRUE)) %>%
+  ungroup() %>% 
+  #grouping species and fishing status
+  group_by(ValidName, Fishing) %>% 
+  #Making column with mean length per fishing status
+  mutate(Length_fishing = mean(Length_mm, na.rm = TRUE)) %>% 
+  #Combine lengths in New_length
+  mutate(New_length = coalesce(Length_mm, Length_site)) %>% 
+  #Combine lengths in New_length
+  mutate(New_length = coalesce(New_length, Length_fishing)) %>% 
+  #changing order of columns
+  select(Site, Period, Length_mm, Length_site, Length_fishing, New_length, everything()) %>% 
+  #remove old length columns
+  select(-c(Length_mm, Length_site, Length_fishing)) %>% 
+  #rename length column
+  rename(Length_mm = New_length) %>% 
+  ungroup()
+
+
+#Making temporary table so that I can later find the species which have lengths from sites
+temp <- DOVS %>% 
+  #When precision is worse than 10% of length, I remove the length so an average can be calculated
+  mutate(Length_mm = ifelse(!Precision_mm < Length_mm*0.1, NA, Length_mm)) %>% 
+  #When precision is worse than 10% of length, the length is removed
+  #and when there are no lengths, I remove the precision as well
+  mutate(Precision_mm = ifelse(is.na(Length_mm), 0, Precision_mm)) %>% 
+  #I also remove RMS, when the length is removed
+  mutate(RMS_mm = ifelse(is.na(Length_mm), 0, RMS_mm)) %>% 
+  uncount(., N) %>% #uncount from tidyverse to expand N to one row per individual
+  #N column is lost in uncount, so it is added here
+  mutate(N = 1) %>% 
+  #group Site, Period and ValidName
+  group_by(Site, ValidName) %>% 
+  #Making column with mean length of species per site
+  mutate(Length_site = mean(Length_mm, na.rm = TRUE)) %>%
+  ungroup()
+#write to excel
+openxlsx::write.xlsx(temp, "Tables/Length_site.xlsx")
+#remove temp variable
+rm(temp)
+
+
 # Species richness boxplot ------------------------------------------------
 
 #Sites in SiteInfo, that do not have clean data in DOVS and UVC
@@ -387,7 +458,7 @@ DOVS_richness <- DOVS %>%
   group_by(Site, Period) %>% 
   mutate(Richness_period = length(unique(na.omit(ValidName)))) %>% #richness per period/transect
   mutate(Transect_area = Transect_length_m*5) %>% #Area of each period/transect in m2
-  mutate(Sp_500m2 = (Richness_period/Transect_area)*500) %>% #Species/500m2
+  mutate(Sp_500m2 = (Richness_period/Transect_area)*500) %>% #Species_period/500m2
   #Removing abundance and species names, as they are not used for species richness calculations
   select(-c(N, ValidName)) %>% 
   unique() %>% 
@@ -433,10 +504,6 @@ UVC_richness <- UVC %>%
 #Combining richness for DOVS and UVC
 Richness <- rbind(DOVS_richness, UVC_richness)
 
-#Making column for significance comparison
-TempRichness <- Richness %>% 
-  mutate(Comparison = paste(Fishing, Method))
-
 #UNIVARIATE PERMANOVA for species richness
 perm_ric <- adonis(Site_sp_500m2 ~ Fishing*Method, data = Richness, 
                    permutations = 9999, method = "euclidean")
@@ -445,7 +512,7 @@ perm_ric
 #Plot species richness with significance
 Ric_boxplot <- ggplot(Richness, aes(x = Fishing, y = Site_sp_500m2, fill = Method)) +
   geom_boxplot(fatten = 3) +
-  ggtitle("Total species richness per 500"~m^2) +
+  ggtitle("Mean species richness per 500"~m^2) +
   geom_signif(annotations = paste0("p = ", perm_ric$aov.tab$`Pr(>F)`[2]), 
               y_position = max(Richness$Site_sp_500m2)*1.1, 
               xmin = "Closed", xmax = "Open", textsize = 5, 
@@ -469,6 +536,10 @@ Ric_boxplot <- ggplot(Richness, aes(x = Fishing, y = Site_sp_500m2, fill = Metho
   coord_cartesian(clip = "off")
 
 Ric_boxplot
+
+#Making column for significance comparison
+TempRichness <- Richness %>% 
+  mutate(Comparison = paste(Fishing, Method))
 
 #plot for significance between methods
 ggplot(TempRichness, aes(x = Comparison, y = Site_sp_500m2, fill = Comparison)) +
@@ -532,7 +603,7 @@ perm_den
 #Plot density with significance
 Den_boxplot <- ggplot(Density, aes(x = Fishing, y = N_site_500m2, fill = Method)) +
   geom_boxplot(fatten = 3) +
-  ggtitle("Total density per 500"~m^2) +
+  ggtitle("Mean density per 500"~m^2) +
   geom_signif(annotations = paste0("p = ", perm_den$aov.tab$`Pr(>F)`[2]), 
               y_position = max(Density$N_site_500m2)*1.1, 
               xmin = "Closed", xmax = "Open", textsize = 5, 
@@ -664,7 +735,7 @@ rm(GoodPrecision)
 # Biomass calculations UVC ---------------------------------------------
 #Loading total length ratio for FishDB data
 TLRatio <- xlsx::read.xlsx2("Data/TLRatio.xlsx",
-                      sheetIndex = 1, header = TRUE, stringsAsFactors = FALSE) %>% 
+                            sheetIndex = 1, header = TRUE, stringsAsFactors = FALSE) %>% 
   mutate(TLRatio = as.numeric(TLRatio))
 #In case it does not work, try the line below
 TLRatio <- readxl::read_excel("Data/TLRatio.xlsx", sheet = 1) %>%
@@ -723,7 +794,7 @@ perm_bio
 #plot biomass in kg per 500m2
 Bio_boxplot <- ggplot(Biomass, aes(x = Fishing, y = Kg_500m2_site, fill = Method)) +
   geom_boxplot(fatten = 3) + 
-  ggtitle("Total biomass per 500"~m^2) +
+  ggtitle("Mean biomass per 500"~m^2) +
   geom_signif(annotations = paste0("p = ", perm_bio$aov.tab$`Pr(>F)`[2]), 
               y_position = max(Biomass$Kg_500m2_site)*1.1, 
               xmin = "Closed", xmax = "Open", textsize = 5, 
@@ -766,7 +837,7 @@ rm(Biomass_DOVS, Biomass_UVC, TempBiomass)
 
 #Combining boxplot for richness, density and biomass
 boxplot_all <- ggarrange(nrow = 1, ncol = 3, Ric_boxplot, Den_boxplot, Bio_boxplot,
-          align = "v", common.legend = TRUE, legend = "right")
+                         align = "v", common.legend = TRUE, legend = "right")
 boxplot_all
 
 #Saving composite image with different ratios - DFA
@@ -778,7 +849,7 @@ ggsave("Figures/CompBoxplot.tiff", boxplot_all, device = "tiff", dpi = 300, widt
 #plot biomass in kg per 500m2 - with log10 transformation of y-axis
 Bio_boxplot2 <- ggplot(Biomass, aes(x = Fishing, y = log10(Kg_500m2_site+1), fill = Method)) +
   geom_boxplot(fatten = 3) + 
-  ggtitle("Total biomass per 500"~m^2) +
+  ggtitle("Mean biomass per 500"~m^2) +
   geom_signif(annotations = paste0("p = ", perm_bio$aov.tab$`Pr(>F)`[2]), 
               y_position = max(log10(Biomass$Kg_500m2_site+1))*1.1, 
               xmin = "Closed", xmax = "Open", textsize = 5, 
@@ -1314,7 +1385,7 @@ rm(PCO_biomass, Bio_mat_pco, Bio_mat_pcoa, PCO_bio_1, PCO_bio_2)
 #Data frame for PERMANOVA Factors to be tested
 Factors <- Biomass %>% 
   left_join(Richness %>% select(Site, Method, Site_sp_500m2), #joining richness data
-             by = c("Site", "Method")) %>% 
+            by = c("Site", "Method")) %>% 
   left_join(Density %>% select(Site, Method, N_site_500m2), #joining density data
             by = c("Site", "Method")) %>% 
   left_join(SiteInfo %>% select(Site, Bioregion, Island) %>% unique(), by = "Site") %>% 
@@ -1597,7 +1668,7 @@ arrows_df$variable <- rownames(arrows_df)
 
 #Naming arrows with short species names
 arrows_df$variable <- c("L. argentiventris", "T. obesus", "M. olfax", 
-                             "H. dipterurus", "C. galapagensis", "S. lewini")
+                        "H. dipterurus", "C. galapagensis", "S. lewini")
 
 #Making an anchor for the arrows
 Anchor <- c(0.7, -0.35) 
@@ -1710,7 +1781,7 @@ PCO_den_1 <- ggplot(PCO_density) +
             lineheight = 0.6, 
             x = X2[2], y = Y2[2],
             hjust = 0.45, vjust = 3.2) +
-            #hjust = 1.3, vjust = 0.5) +
+  #hjust = 1.3, vjust = 0.5) +
   #Adding arrow labels for C. galapagensis
   geom_text(data = arrows_df[5,], aes(label = arrows_df$variable[5]),
             size = 6, fontface = "italic",
@@ -1883,7 +1954,7 @@ write.xlsx(results, "Tables/PERMANOVA_PCO_den_met_fish_bioreg.xlsx")
 #Excel sheet with PERMANOVA results for method
 results <- list(perm2$aov.tab)
 #writing excel sheet
-write.xlsx(results, "Figures/PERMANOVA_PCO_den_met.xlsx")
+write.xlsx(results, "Tables/PERMANOVA_PCO_den_met.xlsx")
 
 #Excel sheet with PERMANOVA results for fishing
 results <- list(perm3$aov.tab)
@@ -2167,7 +2238,4 @@ plot(Den_mat_pco, type = "points") #Add type points to remove labels
 Den_mat_pcoa <- pcoa(Den_mat_dist)
 #Biplot with arrows
 biplot(Den_mat_pcoa, Den_mat)
-
-
-
 

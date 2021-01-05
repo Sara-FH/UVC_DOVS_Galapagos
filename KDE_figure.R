@@ -262,7 +262,6 @@ kde.compare(length = Sphyrna_lewini$Length,
             ylab = "Probability Density",
             main = "Sphyrna lewini")
 
-
 # KDE for species of interest ---------------------------------------------
 
 #Variable with species of interest
@@ -271,7 +270,7 @@ spInt <- data.frame(
                 "Triaenodon obesus", "Paralabrax albomaculatus", "Hypanus dipterurus",
                 "Carcharhinus galapagensis", "Carcharhinus limbatus", "Caranx melampygus", 
                 "Aetobatus laticeps", "Lutjanus novemfasciatus", "Hoplopagrus guentherii", 
-                "Seriola rivoliana", "Caranx lugubris", "Dermatolepis dermatolepis"))
+                "Caranx lugubris", "Dermatolepis dermatolepis"))
 
 #Creating empty lists to save figures
 fig_list <- list()
@@ -310,9 +309,9 @@ for(i in seq_along(spInt$ValidName)){
 #Creating composite image using the list of plots saved in the loop above
 KDE_fig <- ggarrange(plotlist = fig_list, ncol = 4, nrow = 4, 
                      labels = c("A)", "B)", "C)", "D)", "E)", "F)", "G)", "H)", 
-                                "I)", "J)", "K)", "L)", "M)", "N)", "O)"),
+                                "I)", "J)", "K)", "L)", "M)", "N)"),
                      font.label = list(size = 14),
-                     common.legend = TRUE, hjust = -1.2,  vjust = 1.4) #1.6
+                     common.legend = TRUE, hjust = -1.2,  vjust = 1.4)
 
 KDE_fig
 
@@ -320,8 +319,21 @@ KDE_fig
 ggsave("Figures/KDE.tiff", KDE_fig, device = "tiff", dpi = 300, width = 15, height = 10)
 
 
+#ERROR for this species - but why?
+Seriola_rivoliana <- KDE_all %>% filter(ValidName == "Seriola rivoliana")
+
+#Example species KDE
+kde.compare(length = Seriola_rivoliana$Length,
+            group = Seriola_rivoliana$Method,
+            align = "no",
+            nboot = 500,
+            xlab = "",
+            ylab = "Probability Density",
+            main = "Seriola rivoliana")
+
+rm(Seriola_rivoliana)
+
+
 #Remove used variables
 rm(KDE_all, Sphyrna_lewini, kde.compare, spInt, fig_list, 
    i, sp, f1, p, grob, KDE_fig)
-
-
