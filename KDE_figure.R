@@ -254,13 +254,24 @@ kde.compare <- function(length = Sphyrna_lewini$Length,
 # End of Function: kde.compare
 
 #Example species KDE
-kde.compare(length = Sphyrna_lewini$Length,
+x <- kde.compare(length = Sphyrna_lewini$Length,
             group = Sphyrna_lewini$Method,
             align = "no",
             nboot = 500,
             xlab = "",
             ylab = "Probability Density",
             main = "Sphyrna lewini")
+
+Dermatolepis_dermatolepis <- KDE_all %>% filter(ValidName == "Dermatolepis dermatolepis")
+
+y <- kde.compare(length = Dermatolepis_dermatolepis$Length,
+                 group = Dermatolepis_dermatolepis$Method,
+                 align = "no",
+                 nboot = 500,
+                 xlab = "",
+                 ylab = "Probability Density",
+                 main = "Sphyrna lewini")
+rm(Dermatolepis_dermatolepis)
 
 # KDE for species of interest ---------------------------------------------
 

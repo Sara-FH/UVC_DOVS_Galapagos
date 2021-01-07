@@ -422,9 +422,42 @@ results <- do.call(rbind, results)
 write.xlsx(results, "Tables/PERMANOVA_den_spInt_2.xlsx")
 
 
+
+# Densities and biomasses for each species --------------------------------
+
+#Run part 1 plot code
+spInt_bio1 <- plot1
+
+#Run part 1 plot code
+spInt_den1 <- plot2
+
+
+#Run part 2 plot code
+spInt_bio2 <- plot1 
+
+#Run part 2 plot code
+spInt_den2 <- plot2 
+
+
+#combine bio for spInt
+spInt_bio <- rbind(spInt_bio1, spInt_bio2)
+  
+
+#combine den for spInt
+spInt_den <- rbind(spInt_den1, spInt_den2)
+
+#remove old variables
+rm(spInt_bio1, spInt_bio2, spInt_den1, spInt_den2)
+
+
+# Removing variables ------------------------------------------------------
+
 #Remove variables from Figures
 rm(spInt, plot1, plot2, fig_list, perm_bio_list, perm_den_list, 
    i, bio, Pbio, f1, den, Pden, f2, fcomb, compfig)
 #Remove variables from PERMANOVAS - from figures
 rm(results, perm_bio_cols, perm_den_cols)
+
+#Remove variables for biomass and density for species of interest
+rm(spInt_bio, spInt_den)
 
