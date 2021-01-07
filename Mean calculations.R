@@ -43,7 +43,7 @@ UVC %>% ungroup() %>% select(Family, Method) %>% unique() %>% arrange() %>%
 # Mean biomass, richness and density for fishing --------------------------
 
 #Mean biomass - fishing
-Mean_biomass <- Biomass %>% 
+mean_biomass <- Biomass %>% 
   group_by(Fishing) %>% 
   summarise(Mean_bio = mean(Kg_500m2_site), Fishing, Kg_500m2_site) %>% 
   #Standard error of the mean
@@ -65,6 +65,8 @@ mean_density <- Density %>%
   #SE
   mutate(SE = sd(N_site_500m2)/sqrt(length(N_site_500m2)))
 
+
+rm(mean_biomass, mean_richness, mean_density)
 
 # Mean biomass, richness and density for bioregion and interaction --------
 
@@ -88,7 +90,7 @@ mean_density1 <- Density %>%
   unique()
 
 #Mean biomass - bioregion - interaction with fishing
-Mean_biomass1 <- Biomass %>% 
+mean_biomass1 <- Biomass %>% 
   left_join(SiteInfo %>% select(Site, Bioregion) %>% unique(), by = "Site") %>% 
   group_by(Bioregion) %>% 
   summarise(Mean_bio = mean(Kg_500m2_site), Bioregion, Kg_500m2_site) %>% 
@@ -130,8 +132,7 @@ Mean_biomass2 <- Biomass %>%
   unique()
 
 rm(mean_richness1, mean_richness2, mean_density1, mean_density2, 
-   Mean_biomass1, Mean_biomass2)
-
+   mean_biomass1, Mean_biomass2)
 
 
 # Species on arrows in PCO plots ------------------------------------------
@@ -171,4 +172,4 @@ sp_bio_PCO <- Biomass_sp %>%
   unique()
 
 
-
+rm(sp_den_PCO, sp_bio_PCO)
