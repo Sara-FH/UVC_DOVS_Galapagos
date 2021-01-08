@@ -422,7 +422,7 @@ temp <- DOVS %>%
   mutate(Length_site = mean(Length_mm, na.rm = TRUE)) %>%
   ungroup()
 #write to excel
-openxlsx::write.xlsx(temp, "Tables/Length_site.xlsx")
+#openxlsx::write.xlsx(temp, "Tables/Length_site.xlsx")
 #remove temp variable
 rm(temp)
 
@@ -502,10 +502,11 @@ UVC_richness <- UVC %>%
   unique()
 
 #Combining richness for DOVS and UVC
-Richness <- rbind(DOVS_richness, UVC_richness)
+Richness <- rbind(DOVS_richness, UVC_richness) %>% 
+  left_join(SiteInfo %>% select(Site, Bioregion) %>% unique(), by = "Site")
 
 #UNIVARIATE PERMANOVA for species richness
-perm_ric <- adonis(Site_sp_500m2 ~ Fishing*Method, data = Richness, 
+perm_ric <- adonis(Site_sp_500m2 ~ Method*Fishing*Bioregion, data = Richness, 
                    permutations = 9999, method = "euclidean")
 perm_ric
 
@@ -513,7 +514,7 @@ perm_ric
 Ric_boxplot <- ggplot(Richness, aes(x = Fishing, y = Site_sp_500m2, fill = Method)) +
   geom_boxplot(fatten = 3) +
   ggtitle("Mean species richness per 500"~m^2) +
-  geom_signif(annotations = paste0("p = ", perm_ric$aov.tab$`Pr(>F)`[1]), 
+  geom_signif(annotations = paste0("p = 0.129"), 
               y_position = max(Richness$Site_sp_500m2)*1.1, 
               xmin = "Closed", xmax = "Open", textsize = 5, 
               vjust = -0.2) +
@@ -604,7 +605,7 @@ perm_den
 Den_boxplot <- ggplot(Density, aes(x = Fishing, y = N_site_500m2, fill = Method)) +
   geom_boxplot(fatten = 3) +
   ggtitle("Mean density per 500"~m^2) +
-  geom_signif(annotations = paste0("p = ", perm_den$aov.tab$`Pr(>F)`[1]), 
+  geom_signif(annotations = paste0("p = 0.013"), 
               y_position = max(Density$N_site_500m2)*1.1, 
               xmin = "Closed", xmax = "Open", textsize = 5, 
               vjust = -0.2) +
@@ -787,15 +788,18 @@ TempBiomass <- Biomass %>%
   mutate(Comparison = paste(Fishing, Method))
 
 #UNIVARIATE PERMANOVA for density
-perm_bio <- adonis(Kg_500m2_site^0.25 ~ Fishing*Method, data = Biomass, 
-                   permutations = 9999, method = "euclidean")
-perm_bio
+#perm_bio <- adonis(Kg_500m2_site^0.25 ~ Fishing*Method, data = Biomass, 
+#                   permutations = 9999, method = "euclidean")
+#perm_bio
+#I realized that this should be connected with the multivariate permanova and the PCO
+#Therefore in the plot, the values from that PERMANOVA is used - even though it is run much later in the
+#script.
 
 #plot biomass in kg per 500m2
 Bio_boxplot <- ggplot(Biomass, aes(x = Fishing, y = Kg_500m2_site, fill = Method)) +
   geom_boxplot(fatten = 3) + 
   ggtitle("Mean biomass per 500"~m^2) +
-  geom_signif(annotations = paste0("p = ", perm_bio$aov.tab$`Pr(>F)`[1]), 
+  geom_signif(annotations = paste0("p = 0.001"), 
               y_position = max(Biomass$Kg_500m2_site)*1.1, 
               xmin = "Closed", xmax = "Open", textsize = 5, 
               vjust = -0.2) +
@@ -841,7 +845,7 @@ boxplot_all <- ggarrange(nrow = 1, ncol = 3, Ric_boxplot, Den_boxplot, Bio_boxpl
 boxplot_all
 
 #Saving composite image with different ratios - DFA
-ggsave("Figures/CompBoxplot.tiff", boxplot_all, device = "tiff", dpi = 300, width = 18, height = 6.5)
+#ggsave("Figures/CompBoxplot.tiff", boxplot_all, device = "tiff", dpi = 300, width = 18, height = 6.5)
 
 
 #combining boxplots with biomass having log10(x+1) scale
@@ -850,7 +854,7 @@ ggsave("Figures/CompBoxplot.tiff", boxplot_all, device = "tiff", dpi = 300, widt
 Bio_boxplot2 <- ggplot(Biomass, aes(x = Fishing, y = log10(Kg_500m2_site+1), fill = Method)) +
   geom_boxplot(fatten = 3) + 
   ggtitle("Mean biomass per 500"~m^2) +
-  geom_signif(annotations = paste0("p = ", perm_bio$aov.tab$`Pr(>F)`[1]), 
+  geom_signif(annotations = paste0("p = 0.001"), 
               y_position = max(log10(Biomass$Kg_500m2_site+1))*1.1, 
               xmin = "Closed", xmax = "Open", textsize = 5, 
               vjust = -0.2) +
@@ -878,7 +882,7 @@ boxplot_all <- ggarrange(nrow = 1, ncol = 3, Ric_boxplot, Den_boxplot, Bio_boxpl
 boxplot_all
 
 #Saving composite image with different ratios - DFA
-ggsave("Figures/CompBoxplot2.tiff", boxplot_all, device = "tiff", dpi = 300, width = 18, height = 6.5)
+#ggsave("Figures/CompBoxplot2.tiff", boxplot_all, device = "tiff", dpi = 300, width = 18, height = 6.5)
 
 
 #Delete variables used for boxplots
@@ -897,13 +901,13 @@ write.xlsx(results, "Tables/UNI_PERM_Richness_Boxplot.xlsx")
 #Making results from PERMANOVA ready for excel
 results <- perm_den$aov.tab
 #writing excel file
-write.xlsx(results, "Tables/UNI_PERM_Density_Boxplot.xlsx")
+#write.xlsx(results, "Tables/UNI_PERM_Density_Boxplot.xlsx")
 
 #Density univariate PERMANOVA to excel
 #Making results from PERMANOVA ready for excel
 results <- perm_bio$aov.tab
 #writing excel file
-write.xlsx(results, "Tables/UNI_PERM_Biomass_Boxplot.xlsx")
+#write.xlsx(results, "Tables/UNI_PERM_Biomass_Boxplot.xlsx")
 
 
 #Remove Univariate PERMANOVA variables after use
@@ -1096,7 +1100,7 @@ boxplot_bioreg <- ggarrange(nrow = 1, ncol = 3, Bioreg_ric, Bioreg_den, Bioreg_b
 boxplot_bioreg
 
 #Saving composite image with different ratios - DFA
-ggsave("Figures/boxplot_bioreg.tiff", boxplot_bioreg, device = "tiff", dpi = 300, width = 18, height = 6.5)
+#ggsave("Figures/boxplot_bioreg.tiff", boxplot_bioreg, device = "tiff", dpi = 300, width = 18, height = 6.5)
 
 
 #Combining boxplot for richness, density and biomass
@@ -1105,7 +1109,7 @@ boxplot_bioreg2 <- ggarrange(nrow = 1, ncol = 3, Bioreg_ric, Bioreg_den, Bioreg_
 boxplot_bioreg2
 
 #Saving composite image with different ratios - DFA
-ggsave("Figures/boxplot_bioreg2.tiff", boxplot_bioreg2, device = "tiff", dpi = 300, width = 18, height = 6.5)
+#ggsave("Figures/boxplot_bioreg2.tiff", boxplot_bioreg2, device = "tiff", dpi = 300, width = 18, height = 6.5)
 
 
 #Delete variables used for boxplots
@@ -1485,8 +1489,8 @@ PCO_bio_1 <- ggplot(PCO_biomass) +
 PCO_bio_1
 
 #Saving PCO for biomass - method and fishing status
-ggsave("Figures/PCO_bio_method_fishing.tiff", 
-       PCO_bio_1, device = "tiff", dpi = 300, width = 11, height = 10)
+#ggsave("Figures/PCO_bio_method_fishing.tiff", 
+#       PCO_bio_1, device = "tiff", dpi = 300, width = 11, height = 10)
 
 
 #plotting biomass, Bioregion and fishing, along with arrows for species with largest biomasses
@@ -1578,8 +1582,8 @@ PCO_bio_2 <- ggplot(PCO_biomass) +
 PCO_bio_2
 
 #Saving PCO for biomass - method and fishing status
-ggsave("Figures/PCO_bio_bioregion_fishing.tiff", 
-       PCO_bio_2, device = "tiff", dpi = 300, width = 11, height = 10)
+#ggsave("Figures/PCO_bio_bioregion_fishing.tiff", 
+#       PCO_bio_2, device = "tiff", dpi = 300, width = 11, height = 10)
 
 
 #remove unnecessary variables
@@ -1645,34 +1649,34 @@ pair_adonis
 #Excel sheet with PERMANOVA results for method, fishing, bioregion
 results <- list(perm1$aov.tab)
 #writing excel sheet
-write.xlsx(results, "Tables/PERMANOVA_PCO_bio_met_fish_bioreg.xlsx")
+#write.xlsx(results, "Tables/PERMANOVA_PCO_bio_met_fish_bioreg.xlsx")
 
 #Excel sheet with PERMANOVA results for method
 results <- list(perm2$aov.tab)
 #writing excel sheet
-write.xlsx(results, "Tables/PERMANOVA_PCO_biomass_met.xlsx")
+#write.xlsx(results, "Tables/PERMANOVA_PCO_biomass_met.xlsx")
 
 #Excel sheet with PERMANOVA results for fishing, bioregion
 results <- list(perm3$aov.tab)
 #writing excel sheet
-write.xlsx(results, "Tables/PERMANOVA_PCO_biomass_fish_bioreg.xlsx")
+#write.xlsx(results, "Tables/PERMANOVA_PCO_biomass_fish_bioreg.xlsx")
 
 
 #Excel sheet with BETADISPERSION results for fishing
 results <- list(beta_perm1$tab)
 #writing excel sheet
-write.xlsx(results, "Tables/BETADISPERSION_PCO_biomass_fish.xlsx")
+#write.xlsx(results, "Tables/BETADISPERSION_PCO_biomass_fish.xlsx")
 
 #Excel sheet with BETADISPERSION results for bioregion
 results <- list(beta_perm2$tab)
 #writing excel sheet
-write.xlsx(results, "Tables/BETADISPERSION_PCO_biomass_bioreg.xlsx")
+#write.xlsx(results, "Tables/BETADISPERSION_PCO_biomass_bioreg.xlsx")
 
 
 #Excel sheet with PAIRWISE PERMANOVA results for bioregion
 results <- list(pair_adonis)
 #writing excel sheet
-write.xlsx(results, "Tables/PAIR_ADONIS_PCO_biomass_bioreg.xlsx")
+#write.xlsx(results, "Tables/PAIR_ADONIS_PCO_biomass_bioreg.xlsx")
 
 
 #Removing unnecessary variables
@@ -2028,8 +2032,8 @@ PCO_den_1 <- ggplot(PCO_density) +
 PCO_den_1
 
 #Saving PCO for biomass - method and fishing status
-ggsave("Figures/PCO_den_method_fishing.tiff", 
-       PCO_den_1, device = "tiff", dpi = 300, width = 11, height = 10)
+#ggsave("Figures/PCO_den_method_fishing.tiff", 
+#       PCO_den_1, device = "tiff", dpi = 300, width = 11, height = 10)
 
 
 #plotting biomass, method, fishing and arrows for species with largest biomasses
@@ -2105,8 +2109,8 @@ PCO_den_2 <- ggplot(PCO_density) +
 PCO_den_2
 
 #Saving PCO for biomass - method and fishing status
-ggsave("Figures/PCO_den_fishing_bioregion.tiff", 
-       PCO_den_2, device = "tiff", dpi = 300, width = 11, height = 10)
+#ggsave("Figures/PCO_den_fishing_bioregion.tiff", 
+#       PCO_den_2, device = "tiff", dpi = 300, width = 11, height = 10)
 
 
 #remove unnecessary variables
@@ -2126,14 +2130,15 @@ perm2 <- adonis(Den_mat ~ Method, data = Factors, method = "bray", permutations 
 perm2
 #Non-significant. Therefore I can exclude it from the final calculations.
 #PERMANOVA - method main effect
-perm3 <- adonis(Den_mat ~ Fishing, data = Factors, method = "bray", permutations = 9999)
-perm3
+#perm3 <- adonis(Den_mat ~ Fishing, data = Factors, method = "bray", permutations = 9999)
+#perm3
 #Non-significant. Therefore I can exclude it from the final calculations.
 #Justification - there is no real difference between methods or fishing. 
 
 #PERMANOVA - Bioregion main effect
 perm4 <- adonis(Den_mat ~ Bioregion, data = Factors, method = "bray", permutations = 9999)
 perm4
+
 
 #Betadispersion Bioregion
 dispersion <- betadisper(Den_mat_dist, group = Factors$Bioregion)
@@ -2142,6 +2147,15 @@ beta_perm1
 #Non-significant
 #Plotting dispersion
 plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
+
+#Betadispersion Bioregion
+dispersion <- betadisper(Den_mat_dist, group = Factors$Fishing)
+beta_perm2 <- permutest(dispersion, permutations = 9999)
+beta_perm2
+#Non-significant
+#Plotting dispersion
+plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
+
 
 #Pairwise PERMANOVA to test which of the bioregions differ significantly from each other
 pair_adonis <- pairwise.adonis(Den_mat_dist, Factors$Bioregion, perm = 9999)
@@ -2156,34 +2170,34 @@ rm(dispersion, Den_mat, Den_mat_dist)
 #Excel sheet with PERMANOVA results for method, fishing, bioregion
 results <- perm1$aov.tab
 #writing excel sheet
-write.xlsx(results, "Tables/PERMANOVA_PCO_den_met_fish_bioreg.xlsx")
+#write.xlsx(results, "Tables/PERMANOVA_PCO_den_met_fish_bioreg.xlsx")
 
 #Excel sheet with PERMANOVA results for method
 results <- list(perm2$aov.tab)
 #writing excel sheet
-write.xlsx(results, "Tables/PERMANOVA_PCO_den_met.xlsx")
+#write.xlsx(results, "Tables/PERMANOVA_PCO_den_met.xlsx")
 
 #Excel sheet with PERMANOVA results for fishing
 results <- list(perm3$aov.tab)
 #writing excel sheet
-write.xlsx(results, "Tables/PERMANOVA_PCO_den_fish.xlsx")
+#write.xlsx(results, "Tables/PERMANOVA_PCO_den_fish.xlsx")
 
 #Excel sheet with PERMANOVA results for bioregion
 results <- list(perm4$aov.tab)
 #writing excel sheet
-write.xlsx(results, "Tables/PERMANOVA_PCO_den_bioreg.xlsx")
+#write.xlsx(results, "Tables/PERMANOVA_PCO_den_bioreg.xlsx")
 
 
 #Excel sheet with BETADISPERSION results for bioregion
 results <- list(beta_perm1$tab)
 #writing excel sheet
-write.xlsx(results, "Tables/BETADISPERSION_PCO_den_bioreg.xlsx")
+#write.xlsx(results, "Tables/BETADISPERSION_PCO_den_bioreg.xlsx")
 
 
 #Excel sheet with PAIRWISE PERMANOVA results for bioregion
 results <- list(pair_adonis)
 #writing excel sheet
-write.xlsx(results, "Tables/PAIR_ADONIS_PCO_den_bioreg.xlsx")
+#write.xlsx(results, "Tables/PAIR_ADONIS_PCO_den_bioreg.xlsx")
 
 
 #Removing unnecessary variables
@@ -2204,7 +2218,7 @@ splist <- UVC %>%
   arrange(Family, ValidName)
 
 #write to excel table
-write.xlsx(splist, "Tables/Specieslist.xlsx")
+#write.xlsx(splist, "Tables/Specieslist.xlsx")
 
 #Remove variables after use
 rm(splist)
@@ -2239,7 +2253,7 @@ sites <- SiteInfo %>%
   select(Site, Zone, Area_description, Transects, Bioregion, Island, Latitude, Longitude)
 
 #write to excel table
-write.xlsx(sites, "Tables/Site_descriptors.xlsx")
+#write.xlsx(sites, "Tables/Site_descriptors.xlsx")
 
 #Remove variables after use
 rm(sites)
@@ -2335,7 +2349,7 @@ lengths <- lengths_UVC %>%
 
 
 #write to excel table
-write.xlsx(lengths, "Tables/Summary_lengths.xlsx")
+#write.xlsx(lengths, "Tables/Summary_lengths.xlsx")
 
 #Remove variables after use
 rm(lengths_DOVS, lengths_UVC, lengths)

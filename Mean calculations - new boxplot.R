@@ -1,6 +1,6 @@
 ##########################################################
 #
-# Mean calculations
+# Mean calculations - new boxplot
 #
 ##########################################################
 
@@ -22,14 +22,6 @@ UVC %>% ungroup() %>% summarise(sum(N))
 DOVS %>% ungroup() %>%  select(ValidName, Method) %>% unique() %>% nrow()
 UVC %>% ungroup() %>%  select(ValidName, Method) %>% unique() %>% nrow()
 
-#Species across all sites
-Sp <- UVC %>% 
-  ungroup() %>%  
-  select(Family, ValidName, Method) %>% 
-  unique() %>% 
-  left_join(DOVS %>% ungroup() %>% select(ValidName, Method) %>% unique(), by = "ValidName")
-rm(Sp)
-
 #Different species in UVC
 UVC %>% ungroup() %>%  select(ValidName, Method) %>% unique() %>% arrange() %>% 
   left_join(DOVS %>% ungroup() %>%  select(ValidName, Method) %>% unique() %>% arrange(), by = "ValidName") %>% 
@@ -48,29 +40,7 @@ UVC %>% ungroup() %>% select(Family, Method) %>% unique() %>% arrange() %>%
   mutate(Method.y = replace_na(Method.y, 0))
 
 
-# Species detected at sites -----------------------------------------------
-
-#How many sites is each species detected at
-Sp_sites <- UVC %>% 
-  select(Site, ValidName, Method) %>% 
-  #join DOVS data
-  rbind(DOVS %>% select(Site, ValidName, Method)) %>% 
-  unique() %>% 
-  group_by(ValidName) %>% 
-  #column with count of site for each species
-  mutate(sp_sites = length(unique(Site))) %>% 
-  ungroup()
-
-
 # Mean biomass, richness and density for fishing --------------------------
-
-#Mean biomass - fishing
-mean_biomass <- Biomass %>% 
-  group_by(Fishing) %>% 
-  summarise(Mean_bio = mean(Kg_500m2_site), Fishing, Kg_500m2_site) %>% 
-  #Standard error of the mean
-  mutate(SE = sd(Kg_500m2_site)/sqrt(length(Kg_500m2_site)))
-
 
 #mean species richness - fishing
 mean_richness <- Richness %>% 
@@ -79,13 +49,23 @@ mean_richness <- Richness %>%
   #standard error of the mean
   mutate(SE = sd(Site_sp_500m2)/sqrt(length(Site_sp_500m2)))
 
-
 #mean density - fishing
-mean_density <- Density %>% 
+mean_density <- Den2 %>% 
+  select(-c(N_site_sp, ValidName)) %>% 
+  unique() %>%
   group_by(Fishing) %>% 
-  summarise(Mean_den = mean(N_site_500m2), Fishing, N_site_500m2) %>% 
+  summarise(Mean_den = mean(N_all), Fishing, N_all) %>% 
   #SE
-  mutate(SE = sd(N_site_500m2)/sqrt(length(N_site_500m2)))
+  mutate(SE = sd(N_all)/sqrt(length(N_all)))
+
+#Mean biomass - fishing
+mean_biomass <- Bio2 %>% 
+  select(-c(Kg_site_sp, ValidName)) %>% 
+  unique() %>% 
+  group_by(Fishing) %>% 
+  summarise(Mean_bio = mean(Kg_all), Fishing, Kg_all) %>% 
+  #Standard error of the mean
+  mutate(SE = sd(Kg_all)/sqrt(length(Kg_all)))
 
 
 rm(mean_biomass, mean_richness, mean_density)
@@ -102,23 +82,27 @@ mean_richness1 <- Richness %>%
   unique()
 
 #mean density - bioregion
-mean_density1 <- Density %>% 
+mean_density1 <- Den2 %>% 
+  select(-c(N_site_sp, ValidName)) %>% 
+  unique() %>%
   left_join(SiteInfo %>% select(Site, Bioregion) %>% unique(), by = "Site") %>% 
   group_by(Bioregion) %>% 
-  summarise(Mean_den = mean(N_site_500m2), Bioregion, N_site_500m2) %>% 
+  summarise(Mean_den = mean(N_all), Bioregion, N_all) %>% 
   #SE
-  mutate(SE = sd(N_site_500m2)/sqrt(length(N_site_500m2))) %>% 
-  select(-N_site_500m2) %>% 
+  mutate(SE = sd(N_all)/sqrt(length(N_all))) %>% 
+  select(-N_all) %>% 
   unique()
 
 #Mean biomass - bioregion - interaction with fishing
-mean_biomass1 <- Biomass %>% 
+mean_biomass1 <- Bio2 %>% 
+  select(-c(Kg_site_sp, ValidName)) %>% 
+  unique() %>% 
   left_join(SiteInfo %>% select(Site, Bioregion) %>% unique(), by = "Site") %>% 
   group_by(Bioregion) %>% 
-  summarise(Mean_bio = mean(Kg_500m2_site), Bioregion, Kg_500m2_site) %>% 
+  summarise(Mean_bio = mean(Kg_all), Bioregion, Kg_all) %>% 
   #Standard error of the mean
-  mutate(SE = sd(Kg_500m2_site)/sqrt(length(Kg_500m2_site))) %>% 
-  select(-Kg_500m2_site) %>% 
+  mutate(SE = sd(Kg_all)/sqrt(length(Kg_all))) %>% 
+  select(-Kg_all) %>% 
   unique()
 
 
@@ -134,23 +118,27 @@ mean_richness2 <- Richness %>%
   unique()
 
 #mean density - bioregion - interaction with fishing
-mean_density2 <- Density %>% 
+mean_density2 <- Den2 %>% 
+  select(-c(N_site_sp, ValidName)) %>% 
+  unique() %>%
   left_join(SiteInfo %>% select(Site, Bioregion) %>% unique(), by = "Site") %>% 
   group_by(Bioregion, Fishing) %>% 
-  summarise(Mean_den = mean(N_site_500m2), Bioregion, Fishing, N_site_500m2) %>% 
+  summarise(Mean_den = mean(N_all), Bioregion, Fishing, N_all) %>% 
   #SE
-  mutate(SE = sd(N_site_500m2)/sqrt(length(N_site_500m2))) %>% 
-  select(-N_site_500m2) %>% 
+  mutate(SE = sd(N_all)/sqrt(length(N_all))) %>% 
+  select(-N_all) %>% 
   unique()
 
 #Mean biomass - bioregion - interaction with fishing
-Mean_biomass2 <- Biomass %>% 
+Mean_biomass2 <- Bio2 %>%
+  select(-c(Kg_site_sp, ValidName)) %>% 
+  unique() %>%
   left_join(SiteInfo %>% select(Site, Bioregion) %>% unique(), by = "Site") %>% 
   group_by(Bioregion, Fishing) %>% 
-  summarise(Mean_bio = mean(Kg_500m2_site), Bioregion, Fishing, Kg_500m2_site) %>% 
+  summarise(Mean_bio = mean(Kg_all), Bioregion, Fishing, Kg_all) %>% 
   #Standard error of the mean
-  mutate(SE = sd(Kg_500m2_site)/sqrt(length(Kg_500m2_site))) %>% 
-  select(-Kg_500m2_site) %>% 
+  mutate(SE = sd(Kg_all)/sqrt(length(Kg_all))) %>% 
+  select(-Kg_all) %>% 
   unique()
 
 rm(mean_richness1, mean_richness2, mean_density1, mean_density2, 
@@ -162,11 +150,11 @@ rm(mean_richness1, mean_richness2, mean_density1, mean_density2,
 #PCO for density, mean density for species on arrows
 sp_den_PCO <- Density_sp %>% 
   filter(ValidName == "Lutjanus argentiventris" | 
-         ValidName == "Triaenodon obesus" |
-         ValidName == "Mycteroperca olfax" |
-         ValidName == "Hypanus dipterurus" |
-         ValidName == "Carcharhinus galapagensis" |
-         ValidName == "Sphyrna lewini") %>% 
+           ValidName == "Triaenodon obesus" |
+           ValidName == "Mycteroperca olfax" |
+           ValidName == "Hypanus dipterurus" |
+           ValidName == "Carcharhinus galapagensis" |
+           ValidName == "Sphyrna lewini") %>% 
   group_by(ValidName) %>% 
   summarise(Mean_den = mean(N_site_sp), ValidName, N_site_sp) %>% 
   #SE
