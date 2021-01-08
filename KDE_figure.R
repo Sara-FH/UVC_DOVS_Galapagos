@@ -46,7 +46,9 @@ kde.compare <- function(length = Sphyrna_lewini$Length,
                         nboot = 500,
                         xlab = 'Fish Length (mm)',
                         ylab = 'Probability Density',
-                        main = ''){
+                        main = '',
+                        #Added to change scale estimate method for dpik function (bandwith selection) in line 87-88 - DFA
+                        scalest = 'minim'){
   
   #check for required packages ('sm' and 'KernSmooth') and load if they are already installed 
   #or install and load them if they are not already installed
@@ -80,10 +82,10 @@ kde.compare <- function(length = Sphyrna_lewini$Length,
   if(align == c('by.median')){Data <- length.aligner(Data)}
   
   #bandwidth calculation
-  
+  #An option to change the scale estimate (scalest) was added to the function so we can choose a different method of estimation - DFA
   h.mean <- function(Data){
-    hl = dpik(Data$length[Data$group == method[1]], kernel='normal')
-    hv = dpik(Data$length[Data$group == method[2]], kernel='normal')
+    hl = dpik(Data$length[Data$group == method[1]], kernel='normal', scalest = scalest)
+    hv = dpik(Data$length[Data$group == method[2]], kernel='normal', scalest = scalest)
     h.m = (hl+hv)/2 #arithmetic mean of the KDEs
     return(h.m)}
   
@@ -340,7 +342,8 @@ kde.compare(length = Seriola_rivoliana$Length,
             nboot = 500,
             xlab = "",
             ylab = "Probability Density",
-            main = "Seriola rivoliana")
+            main = "Seriola rivoliana",
+            scalest = 'stdev')
 
 rm(Seriola_rivoliana)
 
