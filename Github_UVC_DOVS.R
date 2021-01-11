@@ -242,7 +242,7 @@ UVC <- UVC %>%
   mutate(N = 1) #Adding column for N, as it is removed by uncount
 
 # Tidying up DOVS data -----------------------------------------------------
-#Tidying up DOVS data - Saving the clean data set as a different variable - DFA
+#Tidying up DOVS data - Saving the clean data set as a different variable
 DOVS <- DOVS_FullDB %>% 
   filter(Family != "" & Period != "") %>% #Removing rows of un-identified species and empty periods
   select(-c(Comment, Stage, Depth)) %>% #Removing columns that are not needed for analysis
@@ -277,16 +277,13 @@ DOVS <- DOVS_FullDB %>%
   select(-c(SpeciesName, Island)) %>% 
   #Remove any accents in the names of sites, before joining with SiteInfo
   mutate(Site = stringi::stri_trans_general(Site, "Latin-ASCII")) %>% 
-  #Using inner join so only site names that appear in both dataframes are kept - DFA
-  #inner_join(SiteInfo %>% select(-UVC), by = c("Site" = "Site")) %>% 
-  #add siteinfo - is innerjoin better than left_join??
+  #Left joining info about sites
   left_join(SiteInfo %>% select(-c(UVC, DOVS, Depth)), by = c("Site" = "Site", "Period" = "Period")) 
-#I have decided to keep the site column, so I can remember what the sitecode stands for
 
 #Remove variables that are no longer needed
 rm(DOVS_FullDB)
 
-#Finding Periods that are in the DOVS_FullDB and not in the SiteIfo, meaning they have no site length
+#Finding Periods that are in the DOVS data and not in the SiteIfo, meaning they have no site length
 DOVS %>% 
   select(Site, Period) %>% 
   mutate(DOVS_period = paste(Site, Period, sep = " ")) %>% 
@@ -307,14 +304,9 @@ DOVS <- DOVS %>% filter(!(Site == "Fernandina Punta Espinoza" & Period == "T14")
 
 #These are the species that are not in the UVC data which are in the DOVS data
 unique(DOVS$ValidName[!(DOVS$ValidName %in% UVC$ValidName)])
-#Checking Families that are in DOVS, but not in UVC data
-unique(DOVS$Family[!(DOVS$Family %in% UVC$Family)]) #can be deleted after decision on what species to keep
 
 #Keeping only species in DOVS that are in the UVC data
 DOVS <- DOVS %>% filter(ValidName %in% SpeciesUVC)
-#I suggest that we add the following carnivores: 
-#Lutjanus jordani, Caranx sexfasciatus and Epinephelus labriformis
-
 
 
 # Length check ------------------------------------------------------------
@@ -327,6 +319,15 @@ TooLarge_UVC <- UVC %>% #Using data from UVC
   rename(MaxLgth_cm = MaxLgth_m) %>% #renaming column to cm
   filter(Length_cm > MaxLgth_cm) %>% 
   select(Period, Site, ValidName, Length_cm, N, MaxLgth_cm)
+
+#Identifying individuals that are too large in UVC data
+TooSmall_UVC <- UVC %>% #Using data from UVC
+  left_join(FishDB %>% select(ValidName, JuvLgth_m) %>% unique(), #Joining max length and Trophic category
+            by = "ValidName") %>% 
+  mutate(JuvLgth_m = JuvLgth_m*100) %>% #Max length to cm
+  rename(JuvLgth_cm = JuvLgth_m) %>% #renaming column to cm
+  filter(Length_cm < JuvLgth_cm) %>% 
+  select(Period, Site, ValidName, Length_cm, N, JuvLgth_cm)
 
 #Checking species against lengths in UVC data and removing individuals that are too large
 UVC <- UVC %>% #Using data from UVC
@@ -347,6 +348,16 @@ TooLarge_DOVS <- DOVS %>% #Using data from DOVS
   filter(Length_mm > MaxLgth_mm) %>% 
   select(Period, Site, ValidName, Length_mm, N, MaxLgth_mm, Precision_mm, RMS_mm)
 
+#Identifying individuals that are too large in DOVS data
+TooSmall_DOVS <- DOVS %>% #Using data from DOVS
+  left_join(FishDB %>% select(ValidName, JuvLgth_m) %>% unique(), #Joining max length and Trophic category
+            by = "ValidName") %>% 
+  mutate(JuvLgth_m = JuvLgth_m*1000) %>% #Max length to cm
+  rename(JuvLgth_mm = JuvLgth_m) %>% #renaming column to cm
+  filter(Length_mm < JuvLgth_mm) %>% 
+  select(Period, Site, ValidName, Length_mm, N, JuvLgth_mm)
+write.xlsx(TooSmall_DOVS, "Figures/TooSmall_DOVs.xlsx")
+
 #Checking species against lengths in DOVS data and removing individuals that are too large
 DOVS <- DOVS %>% #Using data from DOVS
   left_join(FishDB %>% select(ValidName, MaxLgth_m) %>% unique(), #Joining max length
@@ -357,7 +368,7 @@ DOVS <- DOVS %>% #Using data from DOVS
   select(-MaxLgth_mm)
 
 #Remove unnecessary variables
-rm(TooLarge_DOVS, TooLarge_UVC)
+rm(TooLarge_DOVS, TooLarge_UVC, TooSmall_DOVS, TooSmall_UVC)
 
 
 # Quality control and adding NA lengths DOVS ----------------------------------------------------------
@@ -506,7 +517,7 @@ Richness <- rbind(DOVS_richness, UVC_richness) %>%
   left_join(SiteInfo %>% select(Site, Bioregion) %>% unique(), by = "Site")
 
 #UNIVARIATE PERMANOVA for species richness
-perm_ric <- adonis(Site_sp_500m2 ~ Method*Fishing*Bioregion, data = Richness, 
+perm_ric <- adonis(Site_sp_500m2 ~ Method*Fishing, data = Richness, 
                    permutations = 9999, method = "euclidean")
 perm_ric
 
@@ -514,7 +525,7 @@ perm_ric
 Ric_boxplot <- ggplot(Richness, aes(x = Fishing, y = Site_sp_500m2, fill = Method)) +
   geom_boxplot(fatten = 3) +
   ggtitle("Mean species richness per 500"~m^2) +
-  geom_signif(annotations = paste0("p = 0.129"), 
+  geom_signif(annotations = paste0("p = ", round(perm_ric$aov.tab$`Pr(>F)`[2], digits = 3)), 
               y_position = max(Richness$Site_sp_500m2)*1.1, 
               xmin = "Closed", xmax = "Open", textsize = 5, 
               vjust = -0.2) +
@@ -538,21 +549,10 @@ Ric_boxplot <- ggplot(Richness, aes(x = Fishing, y = Site_sp_500m2, fill = Metho
 
 Ric_boxplot
 
-#Making column for significance comparison
-TempRichness <- Richness %>% 
-  mutate(Comparison = paste(Fishing, Method))
 
-#plot for significance between methods
-ggplot(TempRichness, aes(x = Comparison, y = Site_sp_500m2, fill = Comparison)) +
-  geom_boxplot(fatten = 3) +
-  geom_signif(comparisons = list(c("Closed DOVS", "Closed UVC"), c("Open DOVS", "Open UVC")), 
-              map_signif_level = TRUE, 
-              test = "wilcox.test", 
-              test.args = list(alternative = "two.sided", var.equal = FALSE, paired = FALSE)) +
-  theme_classic()
 
 #Deleting variables that are no longer needed
-rm(DOVS_richness, UVC_richness, TempRichness)
+rm(DOVS_richness, UVC_richness)
 
 
 # Density boxplot ---------------------------------------------------------
@@ -597,7 +597,7 @@ TempDensity <- Density %>%
   mutate(Comparison = paste(Fishing, Method))
 
 #UNIVARIATE PERMANOVA for density
-perm_den <- adonis(N_site_500m2^0.5 ~ Fishing*Method, data = Density, 
+perm_den <- adonis(N_site_500m2^0.5 ~ Method*Fishing, data = Density, 
                    permutations = 9999, method = "euclidean")
 perm_den
 
@@ -605,7 +605,7 @@ perm_den
 Den_boxplot <- ggplot(Density, aes(x = Fishing, y = N_site_500m2, fill = Method)) +
   geom_boxplot(fatten = 3) +
   ggtitle("Mean density per 500"~m^2) +
-  geom_signif(annotations = paste0("p = 0.013"), 
+  geom_signif(annotations = paste0("p = ", round(perm_den$aov.tab$`Pr(>F)`[2], digits = 3)), 
               y_position = max(Density$N_site_500m2)*1.1, 
               xmin = "Closed", xmax = "Open", textsize = 5, 
               vjust = -0.2) +
@@ -788,9 +788,9 @@ TempBiomass <- Biomass %>%
   mutate(Comparison = paste(Fishing, Method))
 
 #UNIVARIATE PERMANOVA for density
-#perm_bio <- adonis(Kg_500m2_site^0.25 ~ Fishing*Method, data = Biomass, 
-#                   permutations = 9999, method = "euclidean")
-#perm_bio
+perm_bio <- adonis(Kg_500m2_site^0.25 ~ Method*Fishing, data = Biomass, 
+                   permutations = 9999, method = "euclidean")
+perm_bio
 #I realized that this should be connected with the multivariate permanova and the PCO
 #Therefore in the plot, the values from that PERMANOVA is used - even though it is run much later in the
 #script.
@@ -799,7 +799,7 @@ TempBiomass <- Biomass %>%
 Bio_boxplot <- ggplot(Biomass, aes(x = Fishing, y = Kg_500m2_site, fill = Method)) +
   geom_boxplot(fatten = 3) + 
   ggtitle("Mean biomass per 500"~m^2) +
-  geom_signif(annotations = paste0("p = 0.001"), 
+  geom_signif(annotations = paste0("p = ", round(perm_bio$aov.tab$`Pr(>F)`[2], digits = 3)), 
               y_position = max(Biomass$Kg_500m2_site)*1.1, 
               xmin = "Closed", xmax = "Open", textsize = 5, 
               vjust = -0.2) +
@@ -845,7 +845,7 @@ boxplot_all <- ggarrange(nrow = 1, ncol = 3, Ric_boxplot, Den_boxplot, Bio_boxpl
 boxplot_all
 
 #Saving composite image with different ratios - DFA
-#ggsave("Figures/CompBoxplot.tiff", boxplot_all, device = "tiff", dpi = 300, width = 18, height = 6.5)
+ggsave("Figures/CompBoxplot.tiff", boxplot_all, device = "tiff", dpi = 300, width = 18, height = 6.5)
 
 
 #combining boxplots with biomass having log10(x+1) scale
@@ -854,7 +854,7 @@ boxplot_all
 Bio_boxplot2 <- ggplot(Biomass, aes(x = Fishing, y = log10(Kg_500m2_site+1), fill = Method)) +
   geom_boxplot(fatten = 3) + 
   ggtitle("Mean biomass per 500"~m^2) +
-  geom_signif(annotations = paste0("p = 0.001"), 
+  geom_signif(annotations = paste0("p = ", round(perm_bio$aov.tab$`Pr(>F)`[2], digits = 3)), 
               y_position = max(log10(Biomass$Kg_500m2_site+1))*1.1, 
               xmin = "Closed", xmax = "Open", textsize = 5, 
               vjust = -0.2) +
@@ -895,7 +895,7 @@ rm(boxplot_all, Ric_boxplot, Den_boxplot, Bio_boxplot, Bio_boxplot2)
 #Making results from PERMANOVA ready for excel
 results <- perm_ric$aov.tab
 #writing excel file
-write.xlsx(results, "Tables/UNI_PERM_Richness_Boxplot.xlsx")
+#write.xlsx(results, "Tables/UNI_PERM_Richness_Boxplot.xlsx")
 
 #Density univariate PERMANOVA to excel
 #Making results from PERMANOVA ready for excel
@@ -921,7 +921,7 @@ Bioreg <- Richness %>%
   #Adding biomass column
   left_join(Biomass %>% select(Site, Method, Kg_500m2_site), by = c("Site", "Method")) %>% 
   #Adding bioregion data from SiteInfo
-  left_join(SiteInfo %>% select(Site, Bioregion) %>% unique(), by = "Site") %>% 
+  #left_join(SiteInfo %>% select(Site, Bioregion) %>% unique(), by = "Site") %>% 
   #reordering columns
   select(Site, Site_sp_500m2, N_site_500m2, Kg_500m2_site, Bioregion, everything()) %>% 
   rename(Zone = Fishing) %>% 
@@ -938,6 +938,8 @@ Bioreg <- Richness %>%
 perm_ric <- adonis(Site_sp_500m2 ~ Zone*Bioregion, data = Bioreg, 
                    permutations = 9999, method = "euclidean")
 perm_ric
+
+perm_ric2 <- as.data.frame(perm_ric$aov.tab)
 
 #No take pairwise adonis
 No_take_bioreg <- Bioreg %>% filter(Zone == "Closed")
@@ -965,11 +967,6 @@ pair_adonis2 <- as.data.frame(pair_adonis2)
 Bioreg_ric <- ggplot(Bioreg, aes(x = Zone, y = Site_sp_500m2, fill = Bioregion)) +
   geom_boxplot(fatten = 3) +
   ggtitle("Mean species richness per 500"~m^2) +
-  #geom_signif(annotations = paste0("p = ", perm_ric$aov.tab$`Pr(>F)`[1]), 
-   #           y_position = max(Richness$Site_sp_500m2)*1.1, 
-    #          xmin = "Closed", xmax = "Open", textsize = 5, 
-     #         vjust = -0.2) +
-  #scale_fill_manual(values = grey.colors(4, start = 0.1, end = 0.6)) +
   scale_y_continuous(name = "Number of species/500"~m^2) +
   scale_x_discrete(labels = c("No-take zone", "Fishing zone")) +
   theme_classic() +
@@ -992,6 +989,7 @@ Bioreg_ric
 perm_den <- adonis(N_site_500m2^0.5 ~ Zone*Bioregion, data = Bioreg, 
                    permutations = 9999, method = "euclidean")
 perm_den
+perm_den2 <- as.data.frame(perm_den$aov.tab)
 
 #No take pairwise adonis -- # should I also do the transformation in the pairwise adonis??
 pair_adonis3 <- pairwise.adonis(No_take_bioreg[,"N_site_500m2"]^0.5, No_take_bioreg$Bioreg_zone, 
@@ -1032,6 +1030,7 @@ Bioreg_den
 perm_bio <- adonis(Kg_500m2_site^0.25 ~ Zone*Bioregion, data = Bioreg, 
                    permutations = 9999, method = "euclidean")
 perm_bio
+perm_bio2 <- as.data.frame(perm_bio$aov.tab)
 
 #No take pairwise adonis
 pair_adonis5 <- pairwise.adonis(No_take_bioreg[,"Kg_500m2_site"], No_take_bioreg$Bioreg_zone, 
