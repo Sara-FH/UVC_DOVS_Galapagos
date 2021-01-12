@@ -1175,6 +1175,9 @@ PCO_biomass <- PCO_biomass %>%
   left_join(SiteInfo %>% select(Site, Fishing, Bioregion, Island) %>% unique(), 
             by = c("Site")) #Adding site info on fishing (closed or open to fishing), bioregion and island
 
+
+# PCO plots exploring data patterns ---------------------------------------
+
 #plotting PCO with methods based on dissimilarity from biomass
 ggplot(PCO_biomass, aes(PC1, PC2, col = Method, fill = Method)) + 
   stat_ellipse(geom = "polygon", col = "black", alpha = 0.5) + 
@@ -1214,14 +1217,9 @@ ggplot(PCO_biomass) +
   geom_point(aes(PC1, PC2, color = Bioregion, shape = Method), size = 2) +
   theme_classic()
 
-#plot with color indicating island and shape = method
-ggplot(PCO_biomass) + 
-  geom_point(aes(PC1, PC2, color = Island, shape = Method), size = 2) +
-  theme_classic()
-
 
 # Names on arrows in PCO plot --------------------------------------------------
-#Funcktion that computes arrows from a pcoa and a species matrix
+#Function that computes arrows from a pcoa and a species matrix
 compute_arrows <-  function(Bio_mat_pcoa, Bio_mat) {
   
   # Keeping the species that has the largest arrows (from former PCO plot)
@@ -1705,6 +1703,9 @@ PCO_density <- PCO_density %>%
   left_join(SiteInfo %>% select(Site, Fishing, Bioregion, Island) %>% unique(), 
             by = c("Site")) #Adding site info on fishing (closed or open to fishing), bioregion and island
 
+
+# PCO plots exploring data patterns ---------------------------------------
+
 #plotting PCO with methods based on dissimilarity from density
 ggplot(PCO_density, aes(PC1, PC2, col = Method, fill = Method)) + 
   stat_ellipse(geom = "polygon", col = "black", alpha = 0.5) + 
@@ -1743,12 +1744,6 @@ ggplot(PCO_density) +
 ggplot(PCO_density) + 
   geom_point(aes(PC1, PC2, color = Bioregion, shape = Method), size = 2) +
   theme_classic()
-
-#plot with color indicating island and shape = method
-ggplot(PCO_density) + 
-  geom_point(aes(PC1, PC2, color = Island, shape = Method), size = 2) +
-  theme_classic()
-
 
 
 # PCO density with arrows -------------------------------------------------
@@ -2058,7 +2053,7 @@ beta_perm1
 #Plotting dispersion
 plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
 
-#Betadispersion Bioregion
+#Betadispersion fishing
 dispersion <- betadisper(Den_mat_dist, group = Factors$Fishing)
 beta_perm2 <- permutest(dispersion, permutations = 9999)
 beta_perm2
@@ -2103,6 +2098,10 @@ results <- list(beta_perm1$tab)
 #writing excel sheet
 #write.xlsx(results, "Tables/BETADISPERSION_PCO_den_bioreg.xlsx")
 
+#Excel sheet with BETADISPERSION results for fishing
+results <- list(beta_perm2$tab)
+#writing excel sheet
+#write.xlsx(results, "Tables/BETADISPERSION_PCO_den_fishing.xlsx")
 
 #Excel sheet with PAIRWISE PERMANOVA results for bioregion
 results <- list(pair_adonis)
