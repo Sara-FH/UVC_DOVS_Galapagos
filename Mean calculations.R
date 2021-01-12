@@ -97,7 +97,7 @@ mean_richness1 <- Richness %>%
   group_by(Bioregion) %>% 
   summarise(Mean_rich = mean(Site_sp_500m2), Bioregion, Site_sp_500m2) %>% 
   #standard error of the mean
-  mutate(SE = sd(Site_sp_500m2)/sqrt(length(Site_sp_500m2))) %>% 
+  mutate(SE_R = sd(Site_sp_500m2)/sqrt(length(Site_sp_500m2))) %>% 
   select(-Site_sp_500m2) %>% 
   unique()
 
@@ -107,7 +107,7 @@ mean_density1 <- Density %>%
   group_by(Bioregion) %>% 
   summarise(Mean_den = mean(N_site_500m2), Bioregion, N_site_500m2) %>% 
   #SE
-  mutate(SE = sd(N_site_500m2)/sqrt(length(N_site_500m2))) %>% 
+  mutate(SE_D = sd(N_site_500m2)/sqrt(length(N_site_500m2))) %>% 
   select(-N_site_500m2) %>% 
   unique()
 
@@ -117,10 +117,17 @@ mean_biomass1 <- Biomass %>%
   group_by(Bioregion) %>% 
   summarise(Mean_bio = mean(Kg_500m2_site), Bioregion, Kg_500m2_site) %>% 
   #Standard error of the mean
-  mutate(SE = sd(Kg_500m2_site)/sqrt(length(Kg_500m2_site))) %>% 
+  mutate(SE_B = sd(Kg_500m2_site)/sqrt(length(Kg_500m2_site))) %>% 
   select(-Kg_500m2_site) %>% 
   unique()
 
+#Combine means for bioregions
+means <- mean_richness1 %>% 
+  left_join(mean_density1, by = "Bioregion") %>% 
+  left_join(mean_biomass1, by = "Bioregion")
+
+
+rm(mean_richness1, mean_density1, mean_biomass1)
 
 ### Interaction
 
@@ -129,7 +136,7 @@ mean_richness2 <- Richness %>%
   group_by(Bioregion, Fishing) %>% 
   summarise(Mean_rich = mean(Site_sp_500m2), Bioregion, Fishing, Site_sp_500m2) %>% 
   #standard error of the mean
-  mutate(SE = sd(Site_sp_500m2)/sqrt(length(Site_sp_500m2))) %>% 
+  mutate(SE_R = sd(Site_sp_500m2)/sqrt(length(Site_sp_500m2))) %>% 
   select(-Site_sp_500m2) %>% 
   unique()
 
@@ -139,22 +146,29 @@ mean_density2 <- Density %>%
   group_by(Bioregion, Fishing) %>% 
   summarise(Mean_den = mean(N_site_500m2), Bioregion, Fishing, N_site_500m2) %>% 
   #SE
-  mutate(SE = sd(N_site_500m2)/sqrt(length(N_site_500m2))) %>% 
+  mutate(SE_D = sd(N_site_500m2)/sqrt(length(N_site_500m2))) %>% 
   select(-N_site_500m2) %>% 
   unique()
 
 #Mean biomass - bioregion - interaction with fishing
-Mean_biomass2 <- Biomass %>% 
+mean_biomass2 <- Biomass %>% 
   left_join(SiteInfo %>% select(Site, Bioregion) %>% unique(), by = "Site") %>% 
   group_by(Bioregion, Fishing) %>% 
   summarise(Mean_bio = mean(Kg_500m2_site), Bioregion, Fishing, Kg_500m2_site) %>% 
   #Standard error of the mean
-  mutate(SE = sd(Kg_500m2_site)/sqrt(length(Kg_500m2_site))) %>% 
+  mutate(SE_B = sd(Kg_500m2_site)/sqrt(length(Kg_500m2_site))) %>% 
   select(-Kg_500m2_site) %>% 
   unique()
 
-rm(mean_richness1, mean_richness2, mean_density1, mean_density2, 
-   mean_biomass1, Mean_biomass2)
+#Combine means for bioregions
+means_bioreg <- mean_richness2 %>% 
+  left_join(mean_density2, by = c("Bioregion", "Fishing")) %>% 
+  left_join(mean_biomass2, by = c("Bioregion", "Fishing"))
+
+
+rm(mean_richness2, mean_density2, mean_biomass2)
+
+rm(means, means_bioreg)
 
 
 # Species on arrows in PCO plots ------------------------------------------
