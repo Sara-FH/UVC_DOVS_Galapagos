@@ -3,7 +3,7 @@
 # Author: Sara Færch Hansen
 # Assisting: Denisse Fierro Arcos
 # Version: 1
-# Date last updated: 2020-10-08
+# Date last updated: 2021-01-13
 # Aim: Compare UVC and DOVS data in the Galapagos related to the Master of Science of Sara Færch Hansen
 ###################################################################################################################
 
@@ -93,6 +93,7 @@ NonFish <- c("Eretmochelys imbricata", "Chelonia mydas", "Zalophus wollebaeki",
 FishDB <- read_csv("https://raw.githubusercontent.com/lidefi87/MangroveProject_CDF/master/Data/FishDB.csv")
 #Correcting two Max length typos in the database
 FishDB <- FishDB %>% 
+  #Length for M. birostris and T. meyeni were accidentally in cm instead of meters in data
   mutate(MaxLgth_m = ifelse(ValidName == "Mobula birostris" & MaxLgth_m == 0.91, 9.1, MaxLgth_m)) %>% 
   mutate(MaxLgth_m = ifelse(ValidName == "Taeniurops meyeni" & MaxLgth_m == 0.33, 3.3, MaxLgth_m))
 
@@ -436,6 +437,100 @@ temp <- DOVS %>%
 #openxlsx::write.xlsx(temp, "Tables/Length_site.xlsx")
 #remove temp variable
 rm(temp)
+
+
+# Summary of lengths species of interest ------------------------------------------------------
+#Notes for calculations
+#The standard error is the standard deviation divided by the square root of the sample size
+#formula SE <- sd(samples)/sqrt(sample size)
+
+#Getting length and abundance data for DOVS
+lengths_DOVS <- DOVS %>% 
+  select(ValidName, N, Length_mm, Method)
+
+#Making each row a single individual (for later mean calculations)
+lengths_DOVS <- uncount(lengths_DOVS, N) %>% #uncount from tidyverse
+  #N column is lost in uncount, so it is added here
+  mutate(N = 1) %>% 
+  #grouping by species
+  group_by(ValidName) %>% 
+  #Abundance for each species
+  mutate(N_DOVS = sum(N)) %>% 
+  #min length for each species
+  mutate(minFL_DOVS = min(Length_mm)) %>% 
+  #max length for each species
+  mutate(maxFL_DOVS = max(Length_mm)) %>% 
+  #mean length for each species
+  mutate(meanFL_DOVS = mean(Length_mm)) %>% 
+  #Standard error of the mean
+  mutate(SE_DOVS = sd(Length_mm)/sqrt(sum(N))) %>% 
+  #Removing columns that should not be in the final table
+  select(-c(N, Length_mm, Method)) %>% 
+  #Getting unique results
+  unique() %>% 
+  ungroup()
+
+#rounding min, max and mean lengths to 0 decimals
+lengths_DOVS[,3:5] <- round(lengths_DOVS[,3:5], digits = 0)
+#rounding SE to 2 decimals
+lengths_DOVS[,6] <- round(lengths_DOVS[,6], digits = 2)
+
+
+#Loading file with length ratios to go from TL to FL for species of interest
+LengthRatio <- openxlsx::read.xlsx("Data/LengthRatio.xlsx", sheet = 1) 
+str(LengthRatio)
+
+#Getting length and abundance data for UVC
+lengths_UVC <- UVC %>% 
+  select(ValidName, N, Length_cm, Method) %>% 
+  #length from cm to mm
+  mutate(Length_mm = Length_cm*10) %>% 
+  #Adding length-length ratios calculated from FishBase length-length relationships
+  left_join(LengthRatio %>% select(ValidName, LengthRatio), by = "ValidName") %>% 
+  #Calculating new length from TL to FL
+  mutate(Length = Length_mm*LengthRatio) %>% #Length is FL in mm
+  #All abundances (N) are 1, therefore uncount is not used
+  #grouping by species
+  group_by(ValidName) %>% 
+  #Abundance for each species
+  mutate(N_UVC = sum(N)) %>% 
+  #min length for each species
+  mutate(minFL_UVC = min(Length)) %>% 
+  #max length for each species
+  mutate(maxFL_UVC = max(Length)) %>% 
+  #mean length for each species
+  mutate(meanFL_UVC = mean(Length)) %>% 
+  #Standard error of the mean
+  mutate(SE_UVC = sd(Length)/sqrt(sum(N))) %>% 
+  #Removing columns that should not be in the final table
+  select(-c(N, Length_mm, Length_cm, Length, LengthRatio, Method)) %>% 
+  #Getting unique results
+  unique() %>% 
+  ungroup()
+
+#rounding min, max and mean lengths to 0 decimals
+lengths_UVC[,3:5] <- round(lengths_UVC[,3:5], digits = 0)
+#rounding SE to 2 decimals
+lengths_UVC[,6] <- round(lengths_UVC[,6], digits = 2)
+
+
+#combining lengths in one dataframe
+lengths <- lengths_UVC %>% 
+  left_join(lengths_DOVS, by = "ValidName") %>% 
+  #Changing order of columns
+  select(ValidName, N_DOVS, N_UVC, minFL_DOVS, minFL_UVC, maxFL_DOVS, maxFL_UVC, 
+         meanFL_DOVS, SE_DOVS, meanFL_UVC, SE_UVC) %>% 
+  #arraning alphabetically
+  arrange(ValidName) %>% 
+  #renaming species column
+  rename(Species = ValidName)
+
+
+#write to excel table
+write.xlsx(lengths, "Tables/Summary_lengths.xlsx")
+
+#Remove variables after use
+rm(lengths_DOVS, lengths_UVC, lengths)
 
 
 # Species richness boxplot ------------------------------------------------
@@ -2166,102 +2261,6 @@ sites <- SiteInfo %>%
 
 #Remove variables after use
 rm(sites)
-
-
-# Summary of lengths ------------------------------------------------------
-#Notes for calculations
-#The standard error is the standard deviation divided by the square root of the sample size
-#formula SE <- sd(samples)/sqrt(sample size)
-
-#Getting length and abundance data for DOVS
-lengths_DOVS <- DOVS %>% 
-  select(ValidName, N, Length_cm, Method)
-
-#Making each row a single individual (for later mean calculations)
-lengths_DOVS <- uncount(lengths_DOVS, N) %>% #uncount from tidyverse
-  #N column is lost in uncount, so it is added here
-  mutate(N = 1) %>% 
-  #Make length to mm
-  mutate(Length_cm = Length_cm*10) %>% 
-  #Rename length to mm
-  rename(Length_mm = Length_cm) %>% 
-  #grouping by species
-  group_by(ValidName) %>% 
-  #Abundance for each species
-  mutate(N_DOVS = sum(N)) %>% 
-  #min length for each species
-  mutate(minFL_DOVS = min(Length_mm)) %>% 
-  #max length for each species
-  mutate(maxFL_DOVS = max(Length_mm)) %>% 
-  #mean length for each species
-  mutate(meanFL_DOVS = mean(Length_mm)) %>% 
-  #Standard error of the mean
-  mutate(SE_DOVS = sd(Length_mm)/sqrt(sum(N))) %>% 
-  #Removing columns that should not be in the final table
-  select(-c(N, Length_mm, Method)) %>% 
-  #Getting unique results
-  unique() %>% 
-  ungroup()
-
-#rounding min, max and mean lengths to 0 decimals
-lengths_DOVS[,3:5] <- round(lengths_DOVS[,3:5], digits = 0)
-#rounding SE to 2 decimals
-lengths_DOVS[,6] <- round(lengths_DOVS[,6], digits = 2)
-
-
-#Getting length and abundance data for UVC
-lengths_UVC <- UVC %>% 
-  select(ValidName, N, Length_cm, Method)
-
-#Making each row a single individual (for later mean calculations)
-lengths_UVC <- uncount(lengths_UVC, N) %>% #uncount from tidyverse
-  #N column is lost in uncount, so it is added here
-  mutate(N = 1) %>% 
-  #Make length to mm
-  mutate(Length_cm = Length_cm*10) %>% 
-  #Rename length to mm
-  rename(Length_mm = Length_cm) %>% 
-  #grouping by species
-  group_by(ValidName) %>% 
-  #Abundance for each species
-  mutate(N_UVC = sum(N)) %>% 
-  #min length for each species
-  mutate(minTL_UVC = min(Length_mm)) %>% 
-  #max length for each species
-  mutate(maxTL_UVC = max(Length_mm)) %>% 
-  #mean length for each species
-  mutate(meanTL_UVC = mean(Length_mm)) %>% 
-  #Standard error of the mean
-  mutate(SE_UVC = sd(Length_mm)/sqrt(sum(N))) %>% 
-  #Removing columns that should not be in the final table
-  select(-c(N, Length_mm, Method)) %>% 
-  #Getting unique results
-  unique() %>% 
-  ungroup()
-
-#rounding mean length to 0 decimals
-lengths_UVC[,5] <- round(lengths_UVC[,5], digits = 0)
-#rounding SE to 2 decimals
-lengths_UVC[,6] <- round(lengths_UVC[,6], digits = 2)
-
-
-#combining lengths in one dataframe
-lengths <- lengths_UVC %>% 
-  left_join(lengths_DOVS, by = "ValidName") %>% 
-  #Changing order of columns
-  select(ValidName, N_DOVS, N_UVC, minFL_DOVS, minTL_UVC, maxFL_DOVS, maxTL_UVC, 
-         meanFL_DOVS, SE_DOVS, meanTL_UVC, SE_UVC) %>% 
-  #arraning alphabetically
-  arrange(ValidName) %>% 
-  #renaming species column
-  rename(Species = ValidName)
-
-
-#write to excel table
-#write.xlsx(lengths, "Tables/Summary_lengths.xlsx")
-
-#Remove variables after use
-rm(lengths_DOVS, lengths_UVC, lengths)
 
 
 # Extra tables and figures ------------------------------------------------
