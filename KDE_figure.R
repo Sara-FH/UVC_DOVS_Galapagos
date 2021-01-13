@@ -12,17 +12,32 @@ library(grid) #For textGrob in ggplot
 # Prepare species data for KDE --------------------------------------------
 #Run code from Github_UVC_DOVS script from the beginning to "Biomass boxplot"
 
+#open excel file with lengthratios to go from TL to FL
+LengthRatio <- openxlsx::read.xlsx("Data/LengthRatio.xlsx", sheet = 1) %>% 
+  mutate(LengthRatio = as.numeric(LengthRatio))
+
+#change lengths in UVC from TL to FL
+UVC_FL <- UVC %>% 
+  select(ValidName, Length_cm, Method) %>% 
+  #Making length from cm to mm
+  mutate(Length_cm = Length_cm*10) %>% 
+  rename(Length_mm = Length_cm) %>% 
+  #Adding Lengthratios
+  left_join(LengthRatio %>% select(ValidName, LengthRatio), by = "ValidName") %>% 
+  #New column with UVC lengths as FL
+  mutate(Length = Length_mm*LengthRatio) %>% 
+  #remove old length and lengthratio
+  select(-c(Length_mm, LengthRatio))
+  
+
 #Making dataframe from DOVS and UVC data, first run script Github_UVC_DOVS
 KDE_all <- DOVS %>% select(ValidName, Length_cm, Method) %>% 
   #Length to mm
   mutate(Length_cm = Length_cm*10) %>% 
   #Renaming length column
-  rename(Length = Length_cm) %>% 
-  rbind(UVC %>% 
-          select(ValidName, Length_cm, Method) %>% 
-          #UVC length data in cm to mm
-          mutate(Length_cm = Length_cm*10) %>% 
-          rename(Length = Length_cm)) %>% 
+  rename(Length = Length_cm) %>%
+  #Adding UVC data
+  rbind(UVC_FL) %>% 
   ungroup() %>% 
   #recoding Method name for DOVS to be Stereo-DOVs
   mutate(Method = recode(Method, "DOVS" = "Stereo-DOVs"))
@@ -256,7 +271,7 @@ kde.compare <- function(length = Sphyrna_lewini$Length,
 # End of Function: kde.compare
 
 #Example species KDE
-x <- kde.compare(length = Sphyrna_lewini$Length,
+kde.compare(length = Sphyrna_lewini$Length,
             group = Sphyrna_lewini$Method,
             align = "no",
             nboot = 500,
@@ -264,16 +279,6 @@ x <- kde.compare(length = Sphyrna_lewini$Length,
             ylab = "Probability Density",
             main = "Sphyrna lewini")
 
-Dermatolepis_dermatolepis <- KDE_all %>% filter(ValidName == "Dermatolepis dermatolepis")
-
-y <- kde.compare(length = Dermatolepis_dermatolepis$Length,
-                 group = Dermatolepis_dermatolepis$Method,
-                 align = "no",
-                 nboot = 500,
-                 xlab = "",
-                 ylab = "Probability Density",
-                 main = "Sphyrna lewini")
-rm(Dermatolepis_dermatolepis)
 
 # KDE for species of interest ---------------------------------------------
 
