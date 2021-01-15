@@ -18,6 +18,7 @@ library(ape) #For principal coordinates analysis
 library(ggsignif) #Shows level of significance in ggplots
 library(pairwiseAdonis) #pairwise adonis
 library(ggpubr) #ggarrange, for arranging graphs
+library(RColorBrewer) #color palette for graph
 
 
 # Uploading data ----------------------------------------------------------
@@ -1337,7 +1338,7 @@ arrows_df$variable <- c("L. argentiventris", "T. obesus", "M. olfax",
                         "S. lewini", "L. novemfasciatus")
 
 #Making an anchor for the arrows
-Anchor <- c(0.45,-0.4) #upper right corner
+Anchor <- c(0.53, -0.15) #upper right corner
 
 #Constant adjusting the size of vectors
 K <- 1 #not actually necessary, as it is currently 1, but good for playing around with the code
@@ -1391,7 +1392,11 @@ PCO_biomass <- PCO_biomass %>%
 #plotting biomass, method, fishing and arrows for species with largest biomasses
 PCO_bio_1 <- ggplot(PCO_biomass) + 
   #Adding color for fishing and shapes for method
-  geom_point(aes(PC1, PC2, color = Zone, shape = Method), size = 4) + 
+  geom_point(aes(PC1, PC2, fill = Zone, shape = Method, stroke = 1.5), size = 4.5) + 
+  scale_fill_manual(values = c(NA, "black")) +
+  scale_shape_manual(values = c(21,24)) +
+  guides(fill = guide_legend(override.aes = list(shape = 21)), 
+         shape = guide_legend(override.aes = list(fill = "black"))) +
   geom_segment(data = arrows_df, #Adding arrows
                x = Anchor[1], y = Anchor[2],
                mapping = aes(xend = X2, yend = Y2),
@@ -1399,149 +1404,55 @@ PCO_bio_1 <- ggplot(PCO_biomass) +
                size = 0.8) +
   #Adding arrow labels for C. galapagensis
   geom_text(data = arrows_df[6,], aes(label = arrows_df$variable[6]),
-            size = 6, fontface = "italic",
+            size = 7, fontface = "italic",
             lineheight = 0.6, 
             x = X2[6], y = Y2[6], 
             hjust = 0.1, vjust = -0.4) +
   #Adding arrow labels for S. lewini
   geom_text(data = arrows_df[7,], aes(label = arrows_df$variable[7]),
-            size = 6, fontface = "italic",
+            size = 7, fontface = "italic",
             lineheight = 0.6, 
             x = X2[7], y = Y2[7], 
             hjust = 0.5, vjust = -0.5) +
-  #Adding arrow labels for C. melampygus, so it can be read
+  #Adding arrow labels for C. melampygus
   geom_text(data = arrows_df[5,], aes(label = arrows_df$variable[5]),
-            size = 6, fontface = "italic",
+            size = 7, fontface = "italic",
             lineheight = 0.6, 
             x = X2[5], y = Y2[5], 
-            hjust = 1.2, vjust = -1.7) +
+            hjust = 1.15, vjust = -1.7) +
   #Adding arrow labels for C. limbatus
   geom_text(data = arrows_df[c(4),], aes(label = arrows_df$variable[c(4)]),
-            size = 6, fontface = "italic",
+            size = 7, fontface = "italic",
             lineheight = 0.6,  
             x = X2[c(4)], y = Y2[c(4)], 
             hjust = 1.2, vjust = -0.8) +
   #Adding arrow labels for M. olfax.
   geom_text(data = arrows_df[3,], aes(label = arrows_df$variable[3]),
-            size = 6, fontface = "italic",
+            size = 7, fontface = "italic",
             lineheight = 0.6, 
             x = X2[3], y = Y2[3], 
             hjust = 0.45, vjust = 1) +
   #Adding arrow labels for L. argenticentris
   geom_text(data = arrows_df[1,], aes(label = arrows_df$variable[1]),
-            size = 6, fontface = "italic",
+            size = 7, fontface = "italic",
             lineheight = 0.6, 
             x = X2[1], y = Y2[1], 
             hjust = 0.5, vjust = 1.2) +
   #Adding arrow labels for T. obesus
   geom_text(data = arrows_df[2,], aes(label = arrows_df$variable[2]),
-            size = 6, fontface = "italic",
+            size = 7, fontface = "italic",
             lineheight = 0.6, 
             x = X2[2], y = Y2[2], 
             hjust = 0.1, vjust = 1.2) +
   #Adding arrow labels for L. novemfasciatus
   geom_text(data = arrows_df[8,], aes(label = arrows_df$variable[8]),
-            size = 6, fontface = "italic",
+            size = 7, fontface = "italic",
             lineheight = 0.6, 
             x = X2[8], y = Y2[8], 
             hjust = 0.9, vjust = 1) +
   #Changing axes and color
   scale_x_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.6, 0.6)) +
-  scale_y_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.6, 0.6)) +
-  scale_color_grey(start = 0.1, end = 0.5) +
-  theme_classic() +
-  #Adding percentages for the PCO axes
-  xlab(paste0("PCO1 (", 
-              as.character(as.numeric(format(round(Bio_mat_pcoa$values$Relative_eig[1], 3)))*100), 
-              "% of total variation)")) +
-  ylab(paste0("PCO2 (", 
-              as.character(as.numeric(format(round(Bio_mat_pcoa$values$Relative_eig[2], 3)))*100), 
-              "% of total variation)")) +
-  #moving legend in plot and making box around it
-  theme(legend.position = c(0.9, 0.85), 
-        legend.box.background = element_rect(size = 0.7, linetype = "solid", colour ="black"), 
-        legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"),
-        legend.title = element_text(color = "black", size = 17),
-        legend.text = element_text(color = "black", size = 15),
-        axis.text.x = element_text(color = "black", size = 15), 
-        axis.text.y = element_text(color = "black", size = 15), 
-        axis.title.x = element_text(color = "black", size = 17),
-        axis.title.y = element_text(color = "black", size = 17), 
-        axis.line.x = element_line(color = "black", size = 0.5), 
-        axis.line.y = element_line(color = "black", size = 0.5))
-
-PCO_bio_1
-
-#Saving PCO for biomass - method and fishing status
-ggsave("Figures/PCO_bio_method_fishing.tiff", 
-       PCO_bio_1, device = "tiff", dpi = 300, width = 11, height = 10)
-
-
-#plotting biomass, Bioregion and fishing, along with arrows for species with largest biomasses
-PCO_bio_2 <- ggplot(PCO_biomass) + 
-  geom_point(aes(PC1, PC2, color = Bioregion, shape = Zone), size = 4) + 
-  geom_segment(data = arrows_df, #Adding arrows
-               x = Anchor[1], y = Anchor[2],
-               mapping = aes(xend = X2, yend = Y2),
-               arrow = arrow(length = unit(2, "mm")), #Adding arrow head
-               size = 0.8) +
-  geom_segment(data = arrows_df, #Adding arrows
-               x = Anchor[1], y = Anchor[2],
-               mapping = aes(xend = X2, yend = Y2),
-               arrow = arrow(length = unit(2, "mm")), #Adding arrow head
-               size = 0.8) +
-  #Adding arrow labels for C. galapagensis
-  geom_text(data = arrows_df[6,], aes(label = arrows_df$variable[6]),
-            size = 6, fontface = "italic",
-            lineheight = 0.6, 
-            x = X2[6], y = Y2[6], 
-            hjust = 0.1, vjust = -0.4) +
-  #Adding arrow labels for S. lewini
-  geom_text(data = arrows_df[7,], aes(label = arrows_df$variable[7]),
-            size = 6, fontface = "italic",
-            lineheight = 0.6, 
-            x = X2[7], y = Y2[7], 
-            hjust = 0.5, vjust = -0.5) +
-  #Adding arrow labels for C. melampygus, so it can be read
-  geom_text(data = arrows_df[5,], aes(label = arrows_df$variable[5]),
-            size = 6, fontface = "italic",
-            lineheight = 0.6, 
-            x = X2[5], y = Y2[5], 
-            hjust = 1.2, vjust = -1.7) +
-  #Adding arrow labels for C. limbatus
-  geom_text(data = arrows_df[c(4),], aes(label = arrows_df$variable[c(4)]),
-            size = 6, fontface = "italic",
-            lineheight = 0.6,  
-            x = X2[c(4)], y = Y2[c(4)], 
-            hjust = 1.2, vjust = -0.8) +
-  #Adding arrow labels for M. olfax.
-  geom_text(data = arrows_df[3,], aes(label = arrows_df$variable[3]),
-            size = 6, fontface = "italic",
-            lineheight = 0.6, 
-            x = X2[3], y = Y2[3], 
-            hjust = 0.45, vjust = 1) +
-  #Adding arrow labels for L. argenticentris
-  geom_text(data = arrows_df[1,], aes(label = arrows_df$variable[1]),
-            size = 6, fontface = "italic",
-            lineheight = 0.6, 
-            x = X2[1], y = Y2[1], 
-            hjust = 0.5, vjust = 1.2) +
-  #Adding arrow labels for T. obesus
-  geom_text(data = arrows_df[2,], aes(label = arrows_df$variable[2]),
-            size = 6, fontface = "italic",
-            lineheight = 0.6, 
-            x = X2[2], y = Y2[2], 
-            hjust = 0.1, vjust = 1.2) +
-  #Adding arrow labels for L. novemfasciatus
-  geom_text(data = arrows_df[8,], aes(label = arrows_df$variable[8]),
-            size = 6, fontface = "italic",
-            lineheight = 0.6, 
-            x = X2[8], y = Y2[8], 
-            hjust = 0.9, vjust = 1) +
-  #Changing axes and color
-  scale_x_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.6, 0.6)) +
-  scale_y_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.6, 0.6)) +
-  #scale_color_grey(start = 0.1, end = 0.5) +
+  scale_y_continuous(breaks = seq(-0.3, 0.6, by = 0.3), limits = c(-0.35, 0.6)) +
   theme_classic() +
   #Adding percentages for the PCO axes
   xlab(paste0("PCO1 (", 
@@ -1554,14 +1465,200 @@ PCO_bio_2 <- ggplot(PCO_biomass) +
   theme(legend.position = c(0.85, 0.85), 
         legend.box.background = element_rect(size = 0.7, linetype = "solid", colour ="black"), 
         legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"),
-        legend.title = element_text(color = "black", size = 17),
-        legend.text = element_text(color = "black", size = 15),
-        axis.text.x = element_text(color = "black", size = 15), 
-        axis.text.y = element_text(color = "black", size = 15), 
-        axis.title.x = element_text(color = "black", size = 17),
-        axis.title.y = element_text(color = "black", size = 17), 
-        axis.line.x = element_line(color = "black", size = 0.5), 
-        axis.line.y = element_line(color = "black", size = 0.5))
+        legend.title = element_text(color = "black", size = 23),
+        legend.text = element_text(color = "black", size = 21),
+        axis.text.x = element_text(color = "black", size = 23), 
+        axis.text.y = element_text(color = "black", size = 23), 
+        axis.title.x = element_text(color = "black", size = 25),
+        axis.title.y = element_text(color = "black", size = 25), 
+        axis.line.x = element_line(color = "black", size = 1), 
+        axis.line.y = element_line(color = "black", size = 1), 
+        axis.ticks = element_line(color = "black", size = 1.2), 
+        axis.ticks.length = unit(0.2, "cm"))
+
+PCO_bio_1
+
+#Saving PCO for biomass - method and fishing status
+ggsave("Figures/PCO_bio_method_fishing.tiff", 
+       PCO_bio_1, device = "tiff", dpi = 300, width = 11, height = 10)
+
+#WITHOUT COLOR
+#plotting biomass, Bioregion and fishing, along with arrows for species with largest biomasses
+PCO_bio_2 <- ggplot(PCO_biomass) + 
+  geom_point(aes(PC1, PC2, fill = Zone, shape = Bioregion), stroke = 1.5, size = 4.5) + 
+  scale_fill_manual(values = c(NA, "black")) +
+  scale_shape_manual(values = c(21,24, 22, 23)) +
+  guides(fill = guide_legend(override.aes = list(shape = 21)), 
+         shape = guide_legend(override.aes = list(fill = "black"))) +
+  geom_segment(data = arrows_df, #Adding arrows
+               x = Anchor[1], y = Anchor[2],
+               mapping = aes(xend = X2, yend = Y2),
+               arrow = arrow(length = unit(2, "mm")), #Adding arrow head
+               size = 0.8) +
+  #Adding arrow labels for C. galapagensis
+  geom_text(data = arrows_df[6,], aes(label = arrows_df$variable[6]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[6], y = Y2[6], 
+            hjust = 0.1, vjust = -0.4) +
+  #Adding arrow labels for S. lewini
+  geom_text(data = arrows_df[7,], aes(label = arrows_df$variable[7]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[7], y = Y2[7], 
+            hjust = 0.5, vjust = -0.5) +
+  #Adding arrow labels for C. melampygus
+  geom_text(data = arrows_df[5,], aes(label = arrows_df$variable[5]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[5], y = Y2[5], 
+            hjust = 1.15, vjust = -1.7) +
+  #Adding arrow labels for C. limbatus
+  geom_text(data = arrows_df[c(4),], aes(label = arrows_df$variable[c(4)]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6,  
+            x = X2[c(4)], y = Y2[c(4)], 
+            hjust = 1.2, vjust = -0.8) +
+  #Adding arrow labels for M. olfax.
+  geom_text(data = arrows_df[3,], aes(label = arrows_df$variable[3]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[3], y = Y2[3], 
+            hjust = 0.45, vjust = 1) +
+  #Adding arrow labels for L. argenticentris
+  geom_text(data = arrows_df[1,], aes(label = arrows_df$variable[1]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[1], y = Y2[1], 
+            hjust = 0.5, vjust = 1.2) +
+  #Adding arrow labels for T. obesus
+  geom_text(data = arrows_df[2,], aes(label = arrows_df$variable[2]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[2], y = Y2[2], 
+            hjust = 0.1, vjust = 1.2) +
+  #Adding arrow labels for L. novemfasciatus
+  geom_text(data = arrows_df[8,], aes(label = arrows_df$variable[8]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[8], y = Y2[8], 
+            hjust = 0.9, vjust = 1) +
+  #Changing axes and color
+  scale_x_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.6, 0.6)) +
+  scale_y_continuous(breaks = seq(-0.3, 0.6, by = 0.3), limits = c(-0.35, 0.6)) +
+  theme_classic() +
+  #Adding percentages for the PCO axes
+  xlab(paste0("PCO1 (", 
+              as.character(as.numeric(format(round(Bio_mat_pcoa$values$Relative_eig[1], 3)))*100), 
+              "% of total variation)")) +
+  ylab(paste0("PCO2 (", 
+              as.character(as.numeric(format(round(Bio_mat_pcoa$values$Relative_eig[2], 3)))*100), 
+              "% of total variation)")) +
+  #moving legend in plot and making box around it
+  theme(legend.position = c(0.8, 0.85), 
+        legend.box.background = element_rect(size = 0.7, linetype = "solid", colour ="black"), 
+        legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"),
+        legend.title = element_text(color = "black", size = 23),
+        legend.text = element_text(color = "black", size = 21),
+        axis.text.x = element_text(color = "black", size = 23), 
+        axis.text.y = element_text(color = "black", size = 23), 
+        axis.title.x = element_text(color = "black", size = 25),
+        axis.title.y = element_text(color = "black", size = 25), 
+        axis.line.x = element_line(color = "black", size = 1), 
+        axis.line.y = element_line(color = "black", size = 1), 
+        axis.ticks = element_line(color = "black", size = 1.2), 
+        axis.ticks.length = unit(0.2, "cm"))
+
+PCO_bio_2
+
+#WITH COLOR
+#plotting biomass, Bioregion and fishing, along with arrows for species with largest biomasses
+PCO_bio_2 <- ggplot(PCO_biomass) + 
+  geom_point(aes(PC1, PC2, fill = Zone, color = Bioregion, shape = Bioregion), 
+             stroke = 1.5, size = 4.5) + 
+  scale_fill_manual(values = c(NA, "black")) +
+  scale_shape_manual(values = c(21,24, 22, 23)) +
+  scale_color_brewer(palette = "Dark2") +
+  guides(fill = guide_legend(override.aes = list(shape = 21)),
+         shape = guide_legend(override.aes = list(fill = "black"))) +
+  geom_segment(data = arrows_df, #Adding arrows
+               x = Anchor[1], y = Anchor[2],
+               mapping = aes(xend = X2, yend = Y2),
+               arrow = arrow(length = unit(2, "mm")), #Adding arrow head
+               size = 0.8) +
+  #Adding arrow labels for C. galapagensis
+  geom_text(data = arrows_df[6,], aes(label = arrows_df$variable[6]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[6], y = Y2[6], 
+            hjust = 0.1, vjust = -0.4) +
+  #Adding arrow labels for S. lewini
+  geom_text(data = arrows_df[7,], aes(label = arrows_df$variable[7]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[7], y = Y2[7], 
+            hjust = 0.5, vjust = -0.5) +
+  #Adding arrow labels for C. melampygus
+  geom_text(data = arrows_df[5,], aes(label = arrows_df$variable[5]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[5], y = Y2[5], 
+            hjust = 1.15, vjust = -1.7) +
+  #Adding arrow labels for C. limbatus
+  geom_text(data = arrows_df[c(4),], aes(label = arrows_df$variable[c(4)]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6,  
+            x = X2[c(4)], y = Y2[c(4)], 
+            hjust = 1.2, vjust = -0.8) +
+  #Adding arrow labels for M. olfax.
+  geom_text(data = arrows_df[3,], aes(label = arrows_df$variable[3]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[3], y = Y2[3], 
+            hjust = 0.45, vjust = 1) +
+  #Adding arrow labels for L. argenticentris
+  geom_text(data = arrows_df[1,], aes(label = arrows_df$variable[1]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[1], y = Y2[1], 
+            hjust = 0.5, vjust = 1.2) +
+  #Adding arrow labels for T. obesus
+  geom_text(data = arrows_df[2,], aes(label = arrows_df$variable[2]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[2], y = Y2[2], 
+            hjust = 0.1, vjust = 1.2) +
+  #Adding arrow labels for L. novemfasciatus
+  geom_text(data = arrows_df[8,], aes(label = arrows_df$variable[8]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[8], y = Y2[8], 
+            hjust = 0.9, vjust = 1) +
+  #Changing axes and color
+  scale_x_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.6, 0.6)) +
+  scale_y_continuous(breaks = seq(-0.3, 0.6, by = 0.3), limits = c(-0.35, 0.6)) +
+  theme_classic() +
+  #Adding percentages for the PCO axes
+  xlab(paste0("PCO1 (", 
+              as.character(as.numeric(format(round(Bio_mat_pcoa$values$Relative_eig[1], 3)))*100), 
+              "% of total variation)")) +
+  ylab(paste0("PCO2 (", 
+              as.character(as.numeric(format(round(Bio_mat_pcoa$values$Relative_eig[2], 3)))*100), 
+              "% of total variation)")) +
+  #moving legend in plot and making box around it
+  theme(legend.position = c(0.82, 0.82), 
+        legend.box.background = element_rect(size = 0.7, linetype = "solid", colour ="black"), 
+        legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"),
+        legend.title = element_text(color = "black", size = 23),
+        legend.text = element_text(color = "black", size = 21),
+        axis.text.x = element_text(color = "black", size = 23), 
+        axis.text.y = element_text(color = "black", size = 23), 
+        axis.title.x = element_text(color = "black", size = 25),
+        axis.title.y = element_text(color = "black", size = 25), 
+        axis.line.x = element_line(color = "black", size = 1), 
+        axis.line.y = element_line(color = "black", size = 1), 
+        axis.ticks = element_line(color = "black", size = 1.2), 
+        axis.ticks.length = unit(0.2, "cm"))
 
 PCO_bio_2
 
@@ -1827,7 +1924,7 @@ ggplot(PCO_density) +
 compute_arrows <-  function(Den_mat_pcoa, Den_mat) {
   
   # Keeping the species that has the largest arrows (from former PCO plot)
-  Den_mat = Den_mat[ ,c("Lutjanus argentiventris", "Triaenodon obesus", "Mycteroperca olfax", 
+  Den_mat = Den_mat[ ,c("Lutjanus argentiventris", "Paralabrax albomaculatus", "Mycteroperca olfax", 
                         "Hypanus dipterurus", "Carcharhinus galapagensis", "Sphyrna lewini")]
   
   n <- nrow(Den_mat)
@@ -1855,11 +1952,11 @@ species_pcoa_arrows <- compute_arrows(Den_mat_pcoa, Den_mat)
 species_pcoa_arrows$vectors <- as.data.frame(species_pcoa_arrows$vectors)
 
 #making arrows smaller, so they fit better in the PCO
-arrows_df <- as.data.frame(species_pcoa_arrows$U/15)
+arrows_df <- as.data.frame(species_pcoa_arrows$U/20)
 arrows_df$variable <- rownames(arrows_df)
 
 #Naming arrows with short species names
-arrows_df$variable <- c("L. argentiventris", "T. obesus", "M. olfax", 
+arrows_df$variable <- c("L. argentiventris", "P. albomaculatus", "M. olfax", 
                         "H. dipterurus", "C. galapagensis", "S. lewini")
 
 #Making an anchor for the arrows
@@ -1930,7 +2027,7 @@ PCO_density <- PCO_density %>%
                             "Oeste Fria" = "Western"))
 
 #adjusting anchor for the following plot
-Anchor <- c(0.5, -0.05)
+Anchor <- c(0.55, -0.45)
 
 #Constant adjusting the size of vectors
 K <- 1 #not actually necessary, as it is currently 1, but good for playing around with the code
@@ -1940,10 +2037,14 @@ X2 <- (arrows_df$Axis.1 + Anchor[1])*K
 Y2 <- (arrows_df$Axis.2 + Anchor[2])*K
 
 
-#plotting biomass, method, fishing and arrows for species with largest biomasses
+#plotting density, method, fishing and arrows for species with largest densities
 PCO_den_1 <- ggplot(PCO_density) + 
   #Adding color for fishing and shapes for method
-  geom_point(aes(PC1, PC2, color = Zone, shape = Method), size = 4) + 
+  geom_point(aes(PC1, PC2, fill = Zone, shape = Method, stroke = 1.5), size = 4.5) + 
+  scale_fill_manual(values = c(NA, "black")) +
+  scale_shape_manual(values = c(21,24)) +
+  guides(fill = guide_legend(override.aes = list(shape = 21)), 
+         shape = guide_legend(override.aes = list(fill = "black"))) +
   geom_segment(data = arrows_df, #Adding arrows
                x = Anchor[1], y = Anchor[2],
                mapping = aes(xend = X2, yend = Y2),
@@ -1951,43 +2052,42 @@ PCO_den_1 <- ggplot(PCO_density) +
                size = 0.8) +
   #Adding arrow labels for L. argentiventris
   geom_text(data = arrows_df[1,], aes(label = arrows_df$variable[1]),
-            size = 6, fontface = "italic",
+            size = 7, fontface = "italic",
             lineheight = 0.6, 
             x = X2[1], y = Y2[1], 
-            hjust = 0.5, vjust = 1) +
+            hjust = 0.9, vjust = -0.5) +
   #Adding arrow labels for M. olfax
   geom_text(data = arrows_df[3,], aes(label = arrows_df$variable[3]),
-            size = 6, fontface = "italic",
+            size = 7, fontface = "italic",
             lineheight = 0.6, 
             x = X2[3], y = Y2[3], 
-            hjust = 0.1, vjust = 1.2) +
+            hjust = 0.5, vjust = -0.5) +
   #Adding arrow labels for H. dipterurus
   geom_text(data = arrows_df[4,], aes(label = arrows_df$variable[4]),
-            size = 6, fontface = "italic",
+            size = 7, fontface = "italic",
             lineheight = 0.6, 
             x = X2[4], y = Y2[4], 
-            hjust = 0.1, vjust = -0.2) +
-  #Adding arrow labels for T. obesus
+            hjust = -0.07, vjust = 0.1) +
+  #Adding arrow labels for P. albomaculatus
   geom_text(data = arrows_df[2,], aes(label = arrows_df$variable[2]),
-            size = 6, fontface = "italic",
+            size = 7, fontface = "italic",
             lineheight = 0.6, 
             x = X2[2], y = Y2[2],
-            hjust = 0.45, vjust = 3.2) +
-  #hjust = 1.3, vjust = 0.5) +
+            hjust = 0.9, vjust = -0.4) +
   #Adding arrow labels for C. galapagensis
   geom_text(data = arrows_df[5,], aes(label = arrows_df$variable[5]),
-            size = 6, fontface = "italic",
+            size = 7, fontface = "italic",
             lineheight = 0.6, 
             x = X2[5], y = Y2[5], 
-            hjust = 0.05, vjust = -0.3) +
+            hjust = -0.1, vjust = 0.5) +
   #Adding arrow labels for S. lewini
   geom_text(data = arrows_df[6,], aes(label = arrows_df$variable[6]),
-            size = 6, fontface = "italic",
+            size = 7, fontface = "italic",
             lineheight = 0.6, 
             x = X2[6], y = Y2[6], 
-            hjust = 0.5, vjust = -0.3) +
+            hjust = 0.4, vjust = 1.5) +
   #Changing scales and color of plot
-  scale_x_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.6, 0.65)) +
+  #scale_x_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.6, 0.65)) +
   scale_color_grey(start = 0.1, end = 0.5) +
   theme_classic() +
   #Adding percentages for the PCO axes
@@ -1998,17 +2098,20 @@ PCO_den_1 <- ggplot(PCO_density) +
               as.character(as.numeric(format(round(Den_mat_pcoa$values$Relative_eig[2], 3)))*100), 
               "% of total variation)")) +
   #moving legend in plot and making box around it
-  theme(legend.position = c(0.9, 0.85), 
-        legend.box.background = element_rect(size = 0.7, linetype = "solid", colour ="black"), 
-        legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"),
-        legend.title = element_text(color = "black", size = 17),
-        legend.text = element_text(color = "black", size = 15),
-        axis.text.x = element_text(color = "black", size = 15), 
-        axis.text.y = element_text(color = "black", size = 15), 
-        axis.title.x = element_text(color = "black", size = 17),
-        axis.title.y = element_text(color = "black", size = 17), 
-        axis.line.x = element_line(color = "black", size = 0.5), 
-        axis.line.y = element_line(color = "black", size = 0.5))
+  #moving legend in plot and making box around it
+  theme(legend.position = c(0.85, 0.85), 
+      legend.box.background = element_rect(size = 0.7, linetype = "solid", colour ="black"), 
+      legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"),
+      legend.title = element_text(color = "black", size = 23),
+      legend.text = element_text(color = "black", size = 21),
+      axis.text.x = element_text(color = "black", size = 23), 
+      axis.text.y = element_text(color = "black", size = 23), 
+      axis.title.x = element_text(color = "black", size = 25),
+      axis.title.y = element_text(color = "black", size = 25), 
+      axis.line.x = element_line(color = "black", size = 1), 
+      axis.line.y = element_line(color = "black", size = 1), 
+      axis.ticks = element_line(color = "black", size = 1.2), 
+      axis.ticks.length = unit(0.2, "cm"))
 
 PCO_den_1
 
@@ -2017,10 +2120,20 @@ ggsave("Figures/PCO_den_method_fishing.tiff",
        PCO_den_1, device = "tiff", dpi = 300, width = 11, height = 10)
 
 
+  geom_point(aes(PC1, PC2, fill = Zone, shape = Bioregion), stroke = 1.5, size = 4.5) + 
+  scale_fill_manual(values = c(NA, "black")) +
+  scale_shape_manual(values = c(21,24, 22, 23)) +
+  guides(fill = guide_legend(override.aes = list(shape = 21)), 
+         shape = guide_legend(override.aes = list(fill = "black")))
+
 #plotting biomass, method, fishing and arrows for species with largest biomasses
-PCO_den_2 <- ggplot(PCO_density) + 
+PCO_den_2 <- ggplot(PCO_density) +
   #Adding color for fishing and shapes for method
-  geom_point(aes(PC1, PC2, color = Bioregion, shape = Zone), size = 4) + 
+  geom_point(aes(PC1, PC2, fill = Zone, shape = Bioregion), stroke = 1.5, size = 4.5) + 
+  scale_fill_manual(values = c(NA, "black")) +
+  scale_shape_manual(values = c(21,24, 22, 23)) +
+  guides(fill = guide_legend(override.aes = list(shape = 21)), 
+         shape = guide_legend(override.aes = list(fill = "black"))) +
   geom_segment(data = arrows_df, #Adding arrows
                x = Anchor[1], y = Anchor[2],
                mapping = aes(xend = X2, yend = Y2),
@@ -2028,44 +2141,43 @@ PCO_den_2 <- ggplot(PCO_density) +
                size = 0.8) +
   #Adding arrow labels for L. argentiventris
   geom_text(data = arrows_df[1,], aes(label = arrows_df$variable[1]),
-            size = 6, fontface = "italic",
+            size = 7, fontface = "italic",
             lineheight = 0.6, 
             x = X2[1], y = Y2[1], 
-            hjust = 0.5, vjust = 1) +
+            hjust = 0.9, vjust = -0.5) +
   #Adding arrow labels for M. olfax
   geom_text(data = arrows_df[3,], aes(label = arrows_df$variable[3]),
-            size = 6, fontface = "italic",
+            size = 7, fontface = "italic",
             lineheight = 0.6, 
             x = X2[3], y = Y2[3], 
-            hjust = 0.1, vjust = 1.2) +
+            hjust = 0.5, vjust = -0.5) +
   #Adding arrow labels for H. dipterurus
   geom_text(data = arrows_df[4,], aes(label = arrows_df$variable[4]),
-            size = 6, fontface = "italic",
+            size = 7, fontface = "italic",
             lineheight = 0.6, 
             x = X2[4], y = Y2[4], 
-            hjust = 0.1, vjust = -0.2) +
-  #Adding arrow labels for T. obesus
+            hjust = -0.07, vjust = 0.1) +
+  #Adding arrow labels for P. albomaculatus
   geom_text(data = arrows_df[2,], aes(label = arrows_df$variable[2]),
-            size = 6, fontface = "italic",
+            size = 7, fontface = "italic",
             lineheight = 0.6, 
             x = X2[2], y = Y2[2],
-            hjust = 0.45, vjust = 3.2) +
-  #hjust = 1.3, vjust = 0.5) +
+            hjust = 0.9, vjust = -0.4) +
   #Adding arrow labels for C. galapagensis
   geom_text(data = arrows_df[5,], aes(label = arrows_df$variable[5]),
-            size = 6, fontface = "italic",
+            size = 7, fontface = "italic",
             lineheight = 0.6, 
             x = X2[5], y = Y2[5], 
-            hjust = 0.05, vjust = -0.3) +
+            hjust = -0.1, vjust = 0.5) +
   #Adding arrow labels for S. lewini
   geom_text(data = arrows_df[6,], aes(label = arrows_df$variable[6]),
-            size = 6, fontface = "italic",
+            size = 7, fontface = "italic",
             lineheight = 0.6, 
             x = X2[6], y = Y2[6], 
-            hjust = 0.5, vjust = -0.3) +
+            hjust = 0.4, vjust = 1.5) +
   #Changing scales and color of plot
-  scale_x_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.6, 0.65)) +
-  #scale_color_grey(start = 0.1, end = 0.5) +
+  #scale_x_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.6, 0.65)) +
+  scale_color_grey(start = 0.1, end = 0.5) +
   theme_classic() +
   #Adding percentages for the PCO axes
   xlab(paste0("PCO1 (", 
@@ -2075,23 +2187,26 @@ PCO_den_2 <- ggplot(PCO_density) +
               as.character(as.numeric(format(round(Den_mat_pcoa$values$Relative_eig[2], 3)))*100), 
               "% of total variation)")) +
   #moving legend in plot and making box around it
-  theme(legend.position = c(0.85, 0.85), 
+  #moving legend in plot and making box around it
+  theme(legend.position = c(0.82, 0.82), 
         legend.box.background = element_rect(size = 0.7, linetype = "solid", colour ="black"), 
         legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"),
-        legend.title = element_text(color = "black", size = 17),
-        legend.text = element_text(color = "black", size = 15),
-        axis.text.x = element_text(color = "black", size = 15), 
-        axis.text.y = element_text(color = "black", size = 15), 
-        axis.title.x = element_text(color = "black", size = 17),
-        axis.title.y = element_text(color = "black", size = 17), 
-        axis.line.x = element_line(color = "black", size = 0.5), 
-        axis.line.y = element_line(color = "black", size = 0.5))
+        legend.title = element_text(color = "black", size = 23),
+        legend.text = element_text(color = "black", size = 21),
+        axis.text.x = element_text(color = "black", size = 23), 
+        axis.text.y = element_text(color = "black", size = 23), 
+        axis.title.x = element_text(color = "black", size = 25),
+        axis.title.y = element_text(color = "black", size = 25), 
+        axis.line.x = element_line(color = "black", size = 1), 
+        axis.line.y = element_line(color = "black", size = 1), 
+        axis.ticks = element_line(color = "black", size = 1.2), 
+        axis.ticks.length = unit(0.2, "cm"))
 
 PCO_den_2
 
 #Saving PCO for biomass - method and fishing status
-#ggsave("Figures/PCO_den_fishing_bioregion.tiff", 
-#       PCO_den_2, device = "tiff", dpi = 300, width = 11, height = 10)
+ggsave("Figures/PCO_den_fishing_bioregion.tiff", 
+       PCO_den_2, device = "tiff", dpi = 300, width = 11, height = 10)
 
 
 #remove unnecessary variables
