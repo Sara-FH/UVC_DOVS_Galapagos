@@ -321,15 +321,6 @@ TooLarge_UVC <- UVC %>% #Using data from UVC
   filter(Length_cm > MaxLgth_cm) %>% 
   select(Period, Site, ValidName, Length_cm, N, MaxLgth_cm)
 
-#Identifying individuals that are too large in UVC data
-TooSmall_UVC <- UVC %>% #Using data from UVC
-  left_join(FishDB %>% select(ValidName, JuvLgth_m) %>% unique(), #Joining max length and Trophic category
-            by = "ValidName") %>% 
-  mutate(JuvLgth_m = JuvLgth_m*100) %>% #Max length to cm
-  rename(JuvLgth_cm = JuvLgth_m) %>% #renaming column to cm
-  filter(Length_cm < JuvLgth_cm) %>% 
-  select(Period, Site, ValidName, Length_cm, N, JuvLgth_cm)
-
 #Checking species against lengths in UVC data and removing individuals that are too large
 UVC <- UVC %>% #Using data from UVC
   left_join(FishDB %>% select(ValidName, MaxLgth_m) %>% unique(), #Joining max length and Trophic category 
@@ -349,16 +340,6 @@ TooLarge_DOVS <- DOVS %>% #Using data from DOVS
   filter(Length_mm > MaxLgth_mm) %>% 
   select(Period, Site, ValidName, Length_mm, N, MaxLgth_mm, Precision_mm, RMS_mm)
 
-#Identifying individuals that are too large in DOVS data
-TooSmall_DOVS <- DOVS %>% #Using data from DOVS
-  left_join(FishDB %>% select(ValidName, JuvLgth_m) %>% unique(), #Joining max length and Trophic category
-            by = "ValidName") %>% 
-  mutate(JuvLgth_m = JuvLgth_m*1000) %>% #Max length to cm
-  rename(JuvLgth_mm = JuvLgth_m) %>% #renaming column to cm
-  filter(Length_mm < JuvLgth_mm) %>% 
-  select(Period, Site, ValidName, Length_mm, N, JuvLgth_mm)
-write.xlsx(TooSmall_DOVS, "Figures/TooSmall_DOVs.xlsx")
-
 #Checking species against lengths in DOVS data and removing individuals that are too large
 DOVS <- DOVS %>% #Using data from DOVS
   left_join(FishDB %>% select(ValidName, MaxLgth_m) %>% unique(), #Joining max length
@@ -369,7 +350,7 @@ DOVS <- DOVS %>% #Using data from DOVS
   select(-MaxLgth_mm)
 
 #Remove unnecessary variables
-rm(TooLarge_DOVS, TooLarge_UVC, TooSmall_DOVS, TooSmall_UVC)
+rm(TooLarge_DOVS, TooLarge_UVC)
 
 
 # Quality control and adding NA lengths DOVS ----------------------------------------------------------
@@ -527,7 +508,7 @@ lengths <- lengths_UVC %>%
 
 
 #write to excel table
-write.xlsx(lengths, "Tables/Summary_lengths.xlsx")
+#write.xlsx(lengths, "Tables/Summary_lengths.xlsx")
 
 #Remove variables after use
 rm(lengths_DOVS, lengths_UVC, lengths)
@@ -1198,7 +1179,7 @@ EmptySites <- SiteInfo %>%
           mutate(Method = "UVC") %>% 
           filter(!(Site %in% UVC$Site))) %>% 
   mutate(ValidName = "Dummy") %>% 
-  mutate(Kg_site_sp = 0.00001)
+  mutate(Kg_site_sp = 0.6)
 #Adding the sites that have no fish to Biomass_sp
 Biomass_sp <- Biomass_sp %>% 
   rbind(EmptySites)
@@ -1217,7 +1198,7 @@ Bio_mat <- Biomass_sp %>% #Based on biomass calculations for individual species 
   #Making the format right for the matrix
   pivot_wider(names_from = "ValidName", values_from = "Kg_site_sp") %>% 
   #Adding dummy species to all sites, to enable dissimilarity calculations later
-  mutate(Dummy = 0.00001) %>% 
+  mutate(Dummy = 0.6) %>% 
   #As I have some empty sites, where it is important to see how the methods UVC and DOVS differ
   arrange(SiteMet) %>% #Arranging site names
   column_to_rownames("SiteMet") %>% #Making a column into row names for the matrix
@@ -1241,7 +1222,7 @@ qqline(Biomass_sp$Kg_site_sp^0.25, col = "red")
 Bio_mat <- Bio_mat^0.25 
 
 #Changing Dummy species data back to 1*10^-5 to avoid it influencing analysis
-Bio_mat[, "Dummy"] <- 0.00001 
+Bio_mat[, "Dummy"] <- 0.6 
 
 #Calculating dissimilarity distance using vegan package, method bray curtis
 Bio_mat_dist <- vegdist(Bio_mat, method = "bray")
@@ -1492,8 +1473,8 @@ PCO_bio_1 <- ggplot(PCO_biomass) +
 PCO_bio_1
 
 #Saving PCO for biomass - method and fishing status
-#ggsave("Figures/PCO_bio_method_fishing.tiff", 
-#       PCO_bio_1, device = "tiff", dpi = 300, width = 11, height = 10)
+ggsave("Figures/PCO_bio_method_fishing.tiff", 
+       PCO_bio_1, device = "tiff", dpi = 300, width = 11, height = 10)
 
 
 #plotting biomass, Bioregion and fishing, along with arrows for species with largest biomasses
@@ -1585,8 +1566,8 @@ PCO_bio_2 <- ggplot(PCO_biomass) +
 PCO_bio_2
 
 #Saving PCO for biomass - method and fishing status
-#ggsave("Figures/PCO_bio_bioregion_fishing.tiff", 
-#       PCO_bio_2, device = "tiff", dpi = 300, width = 11, height = 10)
+ggsave("Figures/PCO_bio_bioregion_fishing.tiff", 
+       PCO_bio_2, device = "tiff", dpi = 300, width = 11, height = 10)
 
 
 #remove unnecessary variables
@@ -1737,7 +1718,7 @@ EmptySites <- SiteInfo %>%
           mutate(Method = "UVC") %>% 
           filter(!(Site %in% UVC$Site))) %>% 
   mutate(ValidName = "Dummy") %>% 
-  mutate(N_site_sp = 0.00001)
+  mutate(N_site_sp = 0.9)
 #Adding the sites that have no fish to Density_sp
 Density_sp <- Density_sp %>% 
   rbind(EmptySites)
@@ -1749,7 +1730,7 @@ Den_mat <- Density_sp %>%
   select(-c(Fishing, SiteCode)) %>% 
   unite(SiteMet, Site, Method, sep = " ") %>% 
   pivot_wider(names_from = "ValidName", values_from = "N_site_sp") %>% #Making the format right for the matrix
-  mutate(Dummy = 0.00001) %>% #Adding dummy species to all sites, to enable dissimilarity calculations later
+  mutate(Dummy = 0.9) %>% #Adding dummy species to all sites, to enable dissimilarity calculations later
   arrange(SiteMet) %>% #Arranging site names
   column_to_rownames("SiteMet") %>% #Making a column into row names for the matrix
   as.matrix() %>% 
@@ -1773,7 +1754,7 @@ qqline(Density_sp$N_site_sp^0.5, col = "red")
 Den_mat <- Den_mat^0.5
 
 #Changing Dummy species data back to 1*10^-5 to avoid it influencing analysis
-Den_mat[, "Dummy"] <- 0.00001 
+Den_mat[, "Dummy"] <- 0.9
 
 #Calculating dissimilarity distance using vegan package, the default is Bray Curtis
 Den_mat_dist <- vegdist(Den_mat, method = "bray")
@@ -2032,8 +2013,8 @@ PCO_den_1 <- ggplot(PCO_density) +
 PCO_den_1
 
 #Saving PCO for biomass - method and fishing status
-#ggsave("Figures/PCO_den_method_fishing.tiff", 
-#       PCO_den_1, device = "tiff", dpi = 300, width = 11, height = 10)
+ggsave("Figures/PCO_den_method_fishing.tiff", 
+       PCO_den_1, device = "tiff", dpi = 300, width = 11, height = 10)
 
 
 #plotting biomass, method, fishing and arrows for species with largest biomasses
@@ -2283,7 +2264,7 @@ Bio_mat <- Biomass_sp %>% #Based on biomass calculations for individual species 
   pivot_wider(names_from = "ValidName", values_from = "Kg_site_sp") %>% 
   #Adding dummy species to all sites, to enable dissimilarity calculations later
   #As I have some empty sites, where it is important to see how the methods UVC and DOVS differ
-  mutate(Dummy = 0.00001) %>% 
+  mutate(Dummy = 0.6) %>% 
   arrange(SiteMet) %>% #Arranging site names
   #Adding new shorter names
   bind_cols(new_names) %>%
@@ -2298,7 +2279,7 @@ Bio_mat <- Biomass_sp %>% #Based on biomass calculations for individual species 
 Bio_mat <- Bio_mat^0.25 
 
 #Changing Dummy species data back to 1*10^-5 to avoid it influencing analysis
-Bio_mat[, "Dummy"] <- 0.00001 
+Bio_mat[, "Dummy"] <- 0.6 
 
 #Calculating dissimilarity distance using vegan package, method bray curtis
 Bio_mat_dist <- vegdist(Bio_mat, method = "bray")
@@ -2325,7 +2306,7 @@ Den_mat <- Density_sp %>%
   select(-c(Fishing, SiteCode)) %>% 
   unite(SiteMet, Site, Method, sep = " ") %>% 
   pivot_wider(names_from = "ValidName", values_from = "N_site_sp") %>% #Making the format right for the matrix
-  mutate(Dummy = 0.00001) %>% #Adding dummy species to all sites, to enable dissimilarity calculations later
+  mutate(Dummy = 0.9) %>% #Adding dummy species to all sites, to enable dissimilarity calculations later
   arrange(SiteMet) %>% #Arranging site names
   #Adding new shorter names
   bind_cols(new_names) %>%
@@ -2354,7 +2335,7 @@ qqline(Density_sp$N_site_sp^0.5, col = "red")
 Den_mat <- Den_mat^0.5
 
 #Changing Dummy species data back to 1*10^-5 to avoid it influencing analysis
-Den_mat[, "Dummy"] <- 0.00001 
+Den_mat[, "Dummy"] <- 0.9 
 
 #Calculating dissimilarity distance using vegan package, the default is Bray Curtis
 Den_mat_dist <- vegdist(Den_mat, method = "bray")
