@@ -59,7 +59,9 @@ for(i in seq_along(spInt$ValidName)){
     #log10+1 applied to biomass so it can be seen better
     ggplot(aes(x = Fishing, y = Kg_site_sp, fill = Method))+
     geom_boxplot(width = 0.8) + #outlier.size changes the size of the dots representing outliers
-    geom_signif(annotations = paste0("p = ", round(Pbio$aov.tab$`Pr(>F)`[2], digits = 3)), 
+    geom_signif(annotations = ifelse(format(round(Pbio$aov.tab$`Pr(>F)`[2], digits = 3)) > 0,
+                paste0("p = ", round(Pbio$aov.tab$`Pr(>F)`[2], digits = 3)),
+                paste0("p < 0.001")),
                 y_position = max(bio$Kg_site_sp)*1.1, 
                 xmin = "Closed", xmax = "Open", textsize = 4, 
                 vjust = -0.2) +
@@ -84,7 +86,9 @@ for(i in seq_along(spInt$ValidName)){
     #Create a plot
     ggplot(aes(x = Fishing, y = N_site_sp, fill = Method))+
     geom_boxplot(width = 0.8) + #outlier.size changes the size of the dots representing outliers
-    geom_signif(annotations = paste0("p = ", round(Pden$aov.tab$`Pr(>F)`[2], digits = 3)), 
+    geom_signif(annotations = ifelse(format(round(Pden$aov.tab$`Pr(>F)`[2], digits = 3)) > 0,
+                                     paste0("p = ", round(Pden$aov.tab$`Pr(>F)`[2], digits = 3)),
+                                     paste0("p < 0.001")),
                 y_position = max(den$N_site_sp)*1.1, 
                 xmin = "Closed", xmax = "Open", textsize = 4, 
                 vjust = -0.2) +
@@ -157,6 +161,15 @@ names(results) <- perm_den_cols
 results <- do.call(rbind, results)
 #writing 
 write.xlsx(results, "Tables/PERMANOVA_den_spInt_1.xlsx")
+
+
+# Densities and biomasses for each species part 1 --------------------------------
+
+#Run part 1 plot code
+spInt_bio1 <- plot1
+
+#Run part 1 plot code
+spInt_den1 <- plot2
 
 
 # Splitting the figure part 2 ----------------------------------------------
@@ -308,14 +321,7 @@ write.xlsx(results, "Tables/PERMANOVA_den_spInt_2.xlsx")
 
 
 
-# Densities and biomasses for each species --------------------------------
-
-#Run part 1 plot code
-spInt_bio1 <- plot1
-
-#Run part 1 plot code
-spInt_den1 <- plot2
-
+# Densities and biomasses for each species part 2--------------------------------
 
 #Run part 2 plot code
 spInt_bio2 <- plot1 
