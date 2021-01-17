@@ -316,38 +316,38 @@ DOVS <- DOVS %>% filter(ValidName %in% SpeciesUVC)
 #Identifying individuals that are too large in UVC data
 TooLarge_UVC <- UVC %>% #Using data from UVC
   left_join(FishDB %>% select(ValidName, MaxLgth_m) %>% unique(), #Joining max length and Trophic category
-            by = "ValidName") %>% 
+            by = "ValidName") %>%
   mutate(MaxLgth_m = MaxLgth_m*100) %>% #Max length to cm
   rename(MaxLgth_cm = MaxLgth_m) %>% #renaming column to cm
-  filter(Length_cm > MaxLgth_cm) %>% 
+  filter(Length_cm > MaxLgth_cm) %>%
   select(Period, Site, ValidName, Length_cm, N, MaxLgth_cm)
 
 #Checking species against lengths in UVC data and removing individuals that are too large
 UVC <- UVC %>% #Using data from UVC
-  left_join(FishDB %>% select(ValidName, MaxLgth_m) %>% unique(), #Joining max length and Trophic category 
-            by = "ValidName") %>% 
+  left_join(FishDB %>% select(ValidName, MaxLgth_m) %>% unique(), #Joining max length and Trophic category
+            by = "ValidName") %>%
   mutate(MaxLgth_m = MaxLgth_m*100) %>% #Max length to cm
   rename(MaxLgth_cm = MaxLgth_m) %>% #renaming column to cm
-  filter(!Length_cm > MaxLgth_cm) %>% 
+  filter(!Length_cm > MaxLgth_cm) %>%
   select(-MaxLgth_cm)
 
 
 #Identifying individuals that are too large in DOVS data
 TooLarge_DOVS <- DOVS %>% #Using data from DOVS
   left_join(FishDB %>% select(ValidName, MaxLgth_m) %>% unique(), #Joining max length
-            by = "ValidName") %>% 
+            by = "ValidName") %>%
   mutate(MaxLgth_m = MaxLgth_m*1000) %>% #Max length to mm
   rename(MaxLgth_mm = MaxLgth_m) %>% #renaming column to mm
-  filter(Length_mm > MaxLgth_mm) %>% 
+  filter(Length_mm > MaxLgth_mm) %>%
   select(Period, Site, ValidName, Length_mm, N, MaxLgth_mm, Precision_mm, RMS_mm)
 
 #Checking species against lengths in DOVS data and removing individuals that are too large
 DOVS <- DOVS %>% #Using data from DOVS
   left_join(FishDB %>% select(ValidName, MaxLgth_m) %>% unique(), #Joining max length
-            by = "ValidName") %>% 
+            by = "ValidName") %>%
   mutate(MaxLgth_m = MaxLgth_m*1000) %>% #Max length to mm
   rename(MaxLgth_mm = MaxLgth_m) %>% #renaming column to mm
-  filter(is.na(Length_mm) | !Length_mm > MaxLgth_mm) %>% 
+  filter(is.na(Length_mm) | !Length_mm > MaxLgth_mm) %>%
   select(-MaxLgth_mm)
 
 #Remove unnecessary variables
@@ -509,7 +509,7 @@ lengths <- lengths_UVC %>%
 
 
 #write to excel table
-#write.xlsx(lengths, "Tables/Summary_lengths.xlsx")
+write.xlsx(lengths, "Tables/Summary_lengths.xlsx")
 
 #Remove variables after use
 rm(lengths_DOVS, lengths_UVC, lengths)
@@ -1555,97 +1555,6 @@ PCO_bio_2 <- ggplot(PCO_biomass) +
               as.character(as.numeric(format(round(Bio_mat_pcoa$values$Relative_eig[2], 3)))*100), 
               "% of total variation)")) +
   #moving legend in plot and making box around it
-  theme(legend.position = c(0.8, 0.85), 
-        legend.box.background = element_rect(size = 0.7, linetype = "solid", colour ="black"), 
-        legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"),
-        legend.title = element_text(color = "black", size = 23),
-        legend.text = element_text(color = "black", size = 21),
-        axis.text.x = element_text(color = "black", size = 23), 
-        axis.text.y = element_text(color = "black", size = 23), 
-        axis.title.x = element_text(color = "black", size = 25),
-        axis.title.y = element_text(color = "black", size = 25), 
-        axis.line.x = element_line(color = "black", size = 1), 
-        axis.line.y = element_line(color = "black", size = 1), 
-        axis.ticks = element_line(color = "black", size = 1.2), 
-        axis.ticks.length = unit(0.2, "cm"))
-
-PCO_bio_2
-
-#WITH COLOR
-#plotting biomass, Bioregion and fishing, along with arrows for species with largest biomasses
-PCO_bio_2 <- ggplot(PCO_biomass) + 
-  geom_point(aes(PC1, PC2, fill = Zone, color = Bioregion, shape = Bioregion), 
-             stroke = 1.5, size = 4.5) + 
-  scale_fill_manual(values = c(NA, "black")) +
-  scale_shape_manual(values = c(21,24, 22, 23)) +
-  scale_color_brewer(palette = "Dark2") +
-  guides(fill = guide_legend(override.aes = list(shape = 21)),
-         shape = guide_legend(override.aes = list(fill = "black"))) +
-  geom_segment(data = arrows_df, #Adding arrows
-               x = Anchor[1], y = Anchor[2],
-               mapping = aes(xend = X2, yend = Y2),
-               arrow = arrow(length = unit(2, "mm")), #Adding arrow head
-               size = 0.8) +
-  #Adding arrow labels for C. galapagensis
-  geom_text(data = arrows_df[6,], aes(label = arrows_df$variable[6]),
-            size = 7, fontface = "italic",
-            lineheight = 0.6, 
-            x = X2[6], y = Y2[6], 
-            hjust = 0.1, vjust = -0.4) +
-  #Adding arrow labels for S. lewini
-  geom_text(data = arrows_df[7,], aes(label = arrows_df$variable[7]),
-            size = 7, fontface = "italic",
-            lineheight = 0.6, 
-            x = X2[7], y = Y2[7], 
-            hjust = 0.5, vjust = -0.5) +
-  #Adding arrow labels for C. melampygus
-  geom_text(data = arrows_df[5,], aes(label = arrows_df$variable[5]),
-            size = 7, fontface = "italic",
-            lineheight = 0.6, 
-            x = X2[5], y = Y2[5], 
-            hjust = 1.15, vjust = -1.7) +
-  #Adding arrow labels for C. limbatus
-  geom_text(data = arrows_df[c(4),], aes(label = arrows_df$variable[c(4)]),
-            size = 7, fontface = "italic",
-            lineheight = 0.6,  
-            x = X2[c(4)], y = Y2[c(4)], 
-            hjust = 1.2, vjust = -0.8) +
-  #Adding arrow labels for M. olfax.
-  geom_text(data = arrows_df[3,], aes(label = arrows_df$variable[3]),
-            size = 7, fontface = "italic",
-            lineheight = 0.6, 
-            x = X2[3], y = Y2[3], 
-            hjust = 0.45, vjust = 1) +
-  #Adding arrow labels for L. argenticentris
-  geom_text(data = arrows_df[1,], aes(label = arrows_df$variable[1]),
-            size = 7, fontface = "italic",
-            lineheight = 0.6, 
-            x = X2[1], y = Y2[1], 
-            hjust = 0.5, vjust = 1.2) +
-  #Adding arrow labels for T. obesus
-  geom_text(data = arrows_df[2,], aes(label = arrows_df$variable[2]),
-            size = 7, fontface = "italic",
-            lineheight = 0.6, 
-            x = X2[2], y = Y2[2], 
-            hjust = 0.1, vjust = 1.2) +
-  #Adding arrow labels for L. novemfasciatus
-  geom_text(data = arrows_df[8,], aes(label = arrows_df$variable[8]),
-            size = 7, fontface = "italic",
-            lineheight = 0.6, 
-            x = X2[8], y = Y2[8], 
-            hjust = 0.9, vjust = 1) +
-  #Changing axes and color
-  scale_x_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.6, 0.6)) +
-  scale_y_continuous(breaks = seq(-0.3, 0.6, by = 0.3), limits = c(-0.35, 0.6)) +
-  theme_classic() +
-  #Adding percentages for the PCO axes
-  xlab(paste0("PCO1 (", 
-              as.character(as.numeric(format(round(Bio_mat_pcoa$values$Relative_eig[1], 3)))*100), 
-              "% of total variation)")) +
-  ylab(paste0("PCO2 (", 
-              as.character(as.numeric(format(round(Bio_mat_pcoa$values$Relative_eig[2], 3)))*100), 
-              "% of total variation)")) +
-  #moving legend in plot and making box around it
   theme(legend.position = c(0.82, 0.82), 
         legend.box.background = element_rect(size = 0.7, linetype = "solid", colour ="black"), 
         legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"),
@@ -1662,6 +1571,7 @@ PCO_bio_2 <- ggplot(PCO_biomass) +
 
 PCO_bio_2
 
+
 #Saving PCO for biomass - method and fishing status
 ggsave("Figures/PCO_bio_bioregion_fishing.tiff", 
        PCO_bio_2, device = "tiff", dpi = 300, width = 11, height = 10)
@@ -1669,7 +1579,76 @@ ggsave("Figures/PCO_bio_bioregion_fishing.tiff",
 
 #remove unnecessary variables
 rm(compute_arrows, species_pcoa_arrows, arrows_df, Anchor, K, X2, Y2)
-rm(PCO_biomass, Bio_mat_pco, Bio_mat_pcoa, PCO_bio_1, PCO_bio_2)
+rm(Bio_mat_pco, Bio_mat_pcoa, PCO_bio_1, PCO_bio_2)
+
+
+# Pearson correlation values biomass ----------------------------------------------
+#Making data frames for pearson correlation calculations
+
+#Data frame with axes values for each site
+PC_values <- PCO_biomass[,1:4]
+PC_values <- PC_values %>% 
+  unite(SiteMet, Site, Method, sep = " " )
+
+#Data frame with species
+sp_data <- as.data.frame(Bio_mat)
+sp_data <- sp_data %>% 
+  #rownames into column SiteMet
+  rownames_to_column(., var = "SiteMet") %>% 
+  #recode DOVs to Stereo-DOVs
+  mutate(SiteMet = str_replace(SiteMet, "DOVS", "Stereo-DOVs")) %>% 
+  #change zeros to NA for cor function (in the following) to exclude NA
+  na_if(.,0)
+
+#showing which species have too many NA values to calculate pearson values
+cor(PC_values[,2:3], sp_data[,2:30], method = "pearson", use = "pairwise.complete.obs")
+
+#removing columns with too many NA values
+sp_data <- sp_data %>% 
+  select(-c("Mobula birostris", "Tetronarce tremens", "Caranx caninus", "Scomberomorus sierra", 
+            "Sarda orientalis", "Caranx caballus", "Hypanus longus", "Carcharhinus falciformis", 
+            "Thunnus albacares", "Dummy"))
+#Now all the species left can have pearson values calculated
+cor(PC_values[,-1], sp_data[,-1], method = "pearson", use = "pairwise.complete.obs")
+
+value1 <- list()
+value2 <- list()
+
+#For loop calculating pearson correlation values for the two axes in the PCO
+for (i in names(sp_data[,-1])) {
+  sp <- sp_data[,i]
+  r <- lapply(PC_values[, -1], cor.test, sp, method = "pearson")
+  value1[[i]] <- r$PC1$estimate
+  value2[[i]] <- r$PC2$estimate
+}
+
+#pearson correlation values for the x-axis in the PCO
+r1 <- data.frame(Reduce(rbind, value1), row.names = NULL) %>% 
+  #adding species name (same order as data)
+  cbind(names(sp_data[,-1])) %>% 
+  #renaming columns
+  rename(r1 = 1, Species = 2)
+
+#pearson correlation values for the y-axis in the PCO
+r2 <- data.frame(Reduce(rbind, value2), row.names = NULL) %>%
+  #adding species name (same order as data)
+  cbind(names(sp_data[,-1])) %>% 
+  #renaming columns
+  rename(r2 = 1, Species = 2)
+
+#combine r-values dataframes
+r_values <- r1 %>% 
+  #joining correlation values from y-axis
+  left_join(r2, by = "Species") %>% 
+  #ordering columns
+  select(Species, r1, r2) %>% 
+  #Adding column for species with correlation values above 0.4 both negative and positive
+  mutate(pearson = ifelse(r1 > 0.4 | r1 < -0.4 | r2 > 0.4 | r2 < -0.4, 
+                          1, 0))
+
+
+#remove used variables
+rm(PCO_biomass, PC_values, sp_data, value1, value2, sp, r, r1, r2, r_values)
 
 
 # PERMANOVA biomass ---------------------------------------------------
@@ -1730,34 +1709,34 @@ pair_adonis
 #Excel sheet with PERMANOVA results for method, fishing, bioregion
 results <- list(perm1$aov.tab)
 #writing excel sheet
-#write.xlsx(results, "Tables/PERMANOVA_PCO_bio_met_fish_bioreg.xlsx")
+write.xlsx(results, "Tables/PERMANOVA_PCO_bio_met_fish_bioreg.xlsx")
 
 #Excel sheet with PERMANOVA results for method
 results <- list(perm2$aov.tab)
 #writing excel sheet
-#write.xlsx(results, "Tables/PERMANOVA_PCO_biomass_met.xlsx")
+write.xlsx(results, "Tables/PERMANOVA_PCO_biomass_met.xlsx")
 
 #Excel sheet with PERMANOVA results for fishing, bioregion
 results <- list(perm3$aov.tab)
 #writing excel sheet
-#write.xlsx(results, "Tables/PERMANOVA_PCO_biomass_fish_bioreg.xlsx")
+write.xlsx(results, "Tables/PERMANOVA_PCO_biomass_fish_bioreg.xlsx")
 
 
 #Excel sheet with BETADISPERSION results for fishing
 results <- list(beta_perm1$tab)
 #writing excel sheet
-#write.xlsx(results, "Tables/BETADISPERSION_PCO_biomass_fish.xlsx")
+write.xlsx(results, "Tables/BETADISPERSION_PCO_biomass_fish.xlsx")
 
 #Excel sheet with BETADISPERSION results for bioregion
 results <- list(beta_perm2$tab)
 #writing excel sheet
-#write.xlsx(results, "Tables/BETADISPERSION_PCO_biomass_bioreg.xlsx")
+write.xlsx(results, "Tables/BETADISPERSION_PCO_biomass_bioreg.xlsx")
 
 
 #Excel sheet with PAIRWISE PERMANOVA results for bioregion
 results <- list(pair_adonis)
 #writing excel sheet
-#write.xlsx(results, "Tables/PAIR_ADONIS_PCO_biomass_bioreg.xlsx")
+write.xlsx(results, "Tables/PAIR_ADONIS_PCO_biomass_bioreg.xlsx")
 
 
 #Removing unnecessary variables
@@ -2119,13 +2098,6 @@ PCO_den_1
 ggsave("Figures/PCO_den_method_fishing.tiff", 
        PCO_den_1, device = "tiff", dpi = 300, width = 11, height = 10)
 
-
-  geom_point(aes(PC1, PC2, fill = Zone, shape = Bioregion), stroke = 1.5, size = 4.5) + 
-  scale_fill_manual(values = c(NA, "black")) +
-  scale_shape_manual(values = c(21,24, 22, 23)) +
-  guides(fill = guide_legend(override.aes = list(shape = 21)), 
-         shape = guide_legend(override.aes = list(fill = "black")))
-
 #plotting biomass, method, fishing and arrows for species with largest biomasses
 PCO_den_2 <- ggplot(PCO_density) +
   #Adding color for fishing and shapes for method
@@ -2211,7 +2183,76 @@ ggsave("Figures/PCO_den_fishing_bioregion.tiff",
 
 #remove unnecessary variables
 rm(compute_arrows, species_pcoa_arrows, arrows_df, Anchor, K, X2, Y2)
-rm(PCO_density, Den_mat_pco, Den_mat_pcoa, PCO_den_1, PCO_den_2)
+rm(Den_mat_pco, Den_mat_pcoa, PCO_den_1, PCO_den_2)
+
+
+# Pearson correlation values density --------------------------------------
+#Making data frames for pearson correlation calculations
+
+#Data frame with axes values for each site
+PC_values <- PCO_density[,1:4]
+PC_values <- PC_values %>% 
+  unite(SiteMet, Site, Method, sep = " " )
+
+#Data frame with species
+sp_data <- as.data.frame(Den_mat)
+sp_data <- sp_data %>% 
+  #rownames into column SiteMet
+  rownames_to_column(., var = "SiteMet") %>% 
+  #recode DOVs to Stereo-DOVs
+  mutate(SiteMet = str_replace(SiteMet, "DOVS", "Stereo-DOVs")) %>% 
+  #change zeros to NA for cor function (in the following) to exclude NA
+  na_if(.,0)
+
+#showing which species have too many NA values to calculate pearson values
+cor(PC_values[,2:3], sp_data[,2:30], method = "pearson", use = "pairwise.complete.obs")
+
+#removing columns with too many NA values
+sp_data <- sp_data %>% 
+  select(-c("Mobula birostris", "Tetronarce tremens", "Caranx caninus", "Scomberomorus sierra", 
+            "Sarda orientalis", "Caranx caballus", "Hypanus longus", "Carcharhinus falciformis", 
+            "Thunnus albacares", "Dummy"))
+#Now all the species left can have pearson values calculated
+cor(PC_values[,-1], sp_data[,-1], method = "pearson", use = "pairwise.complete.obs")
+
+value1 <- list()
+value2 <- list()
+
+#For loop calculating pearson correlation values for the two axes in the PCO
+for (i in names(sp_data[,-1])) {
+  sp <- sp_data[,i]
+  r <- lapply(PC_values[, -1], cor.test, sp, method = "pearson")
+  value1[[i]] <- r$PC1$estimate
+  value2[[i]] <- r$PC2$estimate
+}
+
+#pearson correlation values for the x-axis in the PCO
+r1 <- data.frame(Reduce(rbind, value1), row.names = NULL) %>% 
+  #adding species name (same order as data)
+  cbind(names(sp_data[,-1])) %>% 
+  #renaming columns
+  rename(r1 = 1, Species = 2)
+
+#pearson correlation values for the y-axis in the PCO
+r2 <- data.frame(Reduce(rbind, value2), row.names = NULL) %>%
+  #adding species name (same order as data)
+  cbind(names(sp_data[,-1])) %>% 
+  #renaming columns
+  rename(r2 = 1, Species = 2)
+
+#combine r-values dataframes
+r_values <- r1 %>% 
+  #joining correlation values from y-axis
+  left_join(r2, by = "Species") %>% 
+  #ordering columns
+  select(Species, r1, r2) %>% 
+  #Adding column for species with correlation values above 0.4 both negative and positive
+  mutate(pearson = ifelse(r1 > 0.4 | r1 < -0.4 | r2 > 0.4 | r2 < -0.4, 
+                          1, 0))
+
+
+#remove used variables
+rm(PCO_density, PC_values, sp_data, value1, value2, sp, r, r1, r2, r_values)
 
 
 # PERMANOVA density -------------------------------------------------------
@@ -2266,38 +2307,38 @@ rm(dispersion, Den_mat, Den_mat_dist)
 #Excel sheet with PERMANOVA results for method, fishing, bioregion
 results <- perm1$aov.tab
 #writing excel sheet
-#write.xlsx(results, "Tables/PERMANOVA_PCO_den_met_fish_bioreg.xlsx")
+write.xlsx(results, "Tables/PERMANOVA_PCO_den_met_fish_bioreg.xlsx")
 
 #Excel sheet with PERMANOVA results for method
 results <- list(perm2$aov.tab)
 #writing excel sheet
-#write.xlsx(results, "Tables/PERMANOVA_PCO_den_met.xlsx")
+write.xlsx(results, "Tables/PERMANOVA_PCO_den_met.xlsx")
 
 #Excel sheet with PERMANOVA results for fishing
 results <- list(perm3$aov.tab)
 #writing excel sheet
-#write.xlsx(results, "Tables/PERMANOVA_PCO_den_fish.xlsx")
+write.xlsx(results, "Tables/PERMANOVA_PCO_den_fish.xlsx")
 
 #Excel sheet with PERMANOVA results for bioregion
 results <- list(perm4$aov.tab)
 #writing excel sheet
-#write.xlsx(results, "Tables/PERMANOVA_PCO_den_bioreg.xlsx")
+write.xlsx(results, "Tables/PERMANOVA_PCO_den_bioreg.xlsx")
 
 
 #Excel sheet with BETADISPERSION results for bioregion
 results <- list(beta_perm1$tab)
 #writing excel sheet
-#write.xlsx(results, "Tables/BETADISPERSION_PCO_den_bioreg.xlsx")
+write.xlsx(results, "Tables/BETADISPERSION_PCO_den_bioreg.xlsx")
 
 #Excel sheet with BETADISPERSION results for fishing
 results <- list(beta_perm2$tab)
 #writing excel sheet
-#write.xlsx(results, "Tables/BETADISPERSION_PCO_den_fishing.xlsx")
+write.xlsx(results, "Tables/BETADISPERSION_PCO_den_fishing.xlsx")
 
 #Excel sheet with PAIRWISE PERMANOVA results for bioregion
 results <- list(pair_adonis)
 #writing excel sheet
-#write.xlsx(results, "Tables/PAIR_ADONIS_PCO_den_bioreg.xlsx")
+write.xlsx(results, "Tables/PAIR_ADONIS_PCO_den_bioreg.xlsx")
 
 
 #Removing unnecessary variables
