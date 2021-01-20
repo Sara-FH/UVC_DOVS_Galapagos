@@ -330,3 +330,59 @@ Den_sp <- rbind(Den_sp_D, Den_sp_U) %>%
 rm(Den_sp_D, Den_sp_U)
 
 
+
+
+# Mean biomass and density for PCO's --------------------------------------
+
+### no-take and fishing zones ###
+
+#mean biomass for PCO - zones
+mean_zones1 <- Biomass_sp %>% 
+  group_by(ValidName, Fishing) %>% 
+  #making column for mean biomass per species per zone
+  mutate(Kg_500m2_zone = mean(Kg_site_sp)) %>% 
+  #SE
+  mutate(SE_kg = sd(Kg_site_sp)/sqrt(length(Kg_site_sp))) %>% 
+  ungroup() %>% 
+  select(-c(Kg_site_sp, Site, SiteCode, Method)) %>% 
+  unique()
+
+#mean density for PCO zones
+mean_zones2 <- Density_sp %>% 
+  group_by(ValidName, Fishing) %>% 
+  #making column for mean biomass per species per zone
+  mutate(N_500m2_zone = mean(N_site_sp)) %>% 
+  #SE
+  mutate(SE_kg = sd(N_site_sp)/sqrt(length(N_site_sp))) %>% 
+  ungroup() %>% 
+  select(-c(N_site_sp, Site, SiteCode, Method)) %>% 
+  unique()
+
+#mean biomass for PCO - bioregion
+mean_bioreg1 <- Biomass_sp %>% 
+  #adding bioregion info
+  left_join(SiteInfo %>% select(Site, Bioregion) %>% unique(), by = "Site") %>% 
+  group_by(ValidName, Bioregion) %>% 
+  #making column for mean biomass per species per bioregion
+  mutate(Kg_500m2_bioregion = mean(Kg_site_sp)) %>% 
+  #SE
+  mutate(SE = sd(Kg_site_sp)/sqrt(length(Kg_site_sp))) %>% 
+  ungroup() %>% 
+  #remove unnecessary columns
+  select(-c(Kg_site_sp, Site, SiteCode, Method, Fishing)) %>% 
+  unique()
+
+#mean density for PCO - bioregion
+mean_bioreg2 <- Density_sp %>% 
+  #adding bioregion info
+  left_join(SiteInfo %>% select(Site, Bioregion) %>% unique(), by = "Site") %>% 
+  group_by(ValidName, Bioregion) %>% 
+  #making column for mean biomass per species per bioregion
+  mutate(N_500m2_bioregion = mean(N_site_sp)) %>% 
+  #SE
+  mutate(SE = sd(N_site_sp)/sqrt(length(N_site_sp))) %>% 
+  ungroup() %>% 
+  #remove unnecessary columns
+  select(-c(N_site_sp, Site, SiteCode, Method, Fishing)) %>% 
+  unique()
+  
