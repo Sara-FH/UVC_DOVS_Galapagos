@@ -69,6 +69,134 @@ MapBio
 
 
 
+# Bioregions and sites sampled --------------------------------------------
+
+Bioregion <- st_read("Shapefiles/bioregiones.shp") #Bioregions of the GMR
+
+#Loading data with coordinates and open/closed to fishing status
+Sites <- read.csv("Data/GPScoords_BacalaoMMT_Corrected.csv") %>% 
+  #Changing first letter of column names to uppercase - DFA
+  janitor::clean_names(case = "title") %>%
+  #We basically apply the same methods as before to ensure consistency - DFA
+  #Remove white space from site names - DFA
+  mutate(Site = str_trim(Site, "both")) %>% 
+  #Removing accents (e.g., Bahía to Bahia) from site names, islands and zoning - DFA
+  mutate_at(vars(c(Site, Island, Zoning)), ~stringi::stri_trans_general(., "Latin-ASCII")) %>% 
+  #Changing site names and bioregions to title case (i.e., first letter of each word is capitalised) - DFA
+  mutate_at(vars(c(Site, Bioregion)), str_to_title) %>% 
+  #remove column zoning
+  select(-c(Zoning)) %>% 
+  #removing sites that are not used in analysis
+  filter(!Site == "Punta Calle 1" & !Site == "Punta Calle 2" & !Site == "Santiago Norte" &
+           !Site == "Samtiago Suroeste" & !Site == "Isabela Alcedo" & 
+           !Site == "Punta Vicente Roca (No Dovs)")
+
+#From the sites data frame creating data frame only for open sites
+open_sites <- Sites %>% 
+  filter(Fishing == "Open")
+#making an sf element for open sites to add to map
+open_sf <- st_as_sf(open_sites, coords = c("Lon Dd", "Lat Dd"), 
+                     crs = 4326, agr = "constant")
+
+#From the sites data frame creating data frame only for closed sites
+closed_sites <- Sites %>% 
+  filter(Fishing == "Closed")
+#making an sf element for closed sites to add to map
+closed_sf <- st_as_sf(closed_sites, coords = c("Lon Dd", "Lat Dd"), 
+                    crs = 4326, agr = "constant")
+
+#Changing bioregion for west
+Bioreg_eng <- Bioregion %>% 
+  filter(!Bioregion$name == "Elizabeth" &
+           !Bioregion$name == "Oeste")
+  # mutate(name = recode(name, 
+  #                      "Elizabeth" = "Oeste"))
+
+library(grid)
+library(ggspatial)
+
+#Making map with bioregions and sampled sites
+MapBio <- ggplot() + 
+  #First we plot the GMR boundary, I have set it to have a transparent fill, 
+  #but you can change this under 'fill'
+  geom_sf(data = GMR, size = 1, color = "black", fill = alpha("blue", 0)) + 
+  #We now plot the actual island
+  geom_sf(data = Gal_Isl, size = 0.5, color = "black", fill = "gray80") + 
+  #Finally, we will plot the GMR zones so they appear over the islands contours
+  #We will change the colour of the boundaries by zone type (ZONA)
+  geom_sf(data = Bioreg_eng, color = "black", fill = NA, size = 0.8) +
+  #Adding sampled sites open to fishing
+  geom_sf(data = open_sf, size = 2.5, shape = 16, fill = "NA") +
+  #Adding sampled sites closed to fishing
+  geom_sf(data = closed_sf, size = 2.5, shape = 17, fill = "NA") +
+  #Adding names for bioregions
+  annotate(geom = "text", x = -89.6, y = -0.2, label = "Central South-eastern", 
+           fontface = "bold", color = "black", size = 5) +
+  annotate(geom = "text", x = -90.2, y = 0.8, label = "Northern", 
+           fontface = "bold", color = "black", size = 5) +
+  annotate(geom = "text", x = -91.9, y = 1, label = "Far Northern", 
+           fontface = "bold", color = "black", size = 5) +
+  annotate(geom = "text", x = -91.9, y = 0.3, label = "Western", 
+           fontface = "bold", color = "black", size = 5) +
+  #Adding scale and North arrow
+  annotation_scale(location = "bl", width_hint = 0.25, text_cex = 1) +
+  annotation_north_arrow(location = "bl", which_north = "TRUE",
+                         pad_x = unit(0.4, "in"), pad_y = unit(0.3, "in"),
+                         style = north_arrow_fancy_orienteering, 
+                         height = unit(2, "cm"), width = unit(2, "cm")) +
+  #grobTree(textGrob("Central South-eastern", x = 0.1, y = 0.1)) +
+  #ggtitle("Galapagos Marine Reserve Zoning") + 
+  #Applying a black and white theme to the figure
+  theme_bw()+
+  #Removing grids
+  theme(panel.grid = element_blank(), 
+        axis.text = element_text(color = "black", size = 16), 
+        axis.title = element_blank(), 
+        panel.border = element_rect(fill = NA, color = "black", size = 1.1), 
+        axis.ticks = element_line(color = "black", size = 1), 
+        axis.ticks.length = unit(0.15, "cm"))
+#Checking the map looks good
+MapBio
+
+#loading packages to make world map
+library(ggplot2)
+library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(rgeos)
+
+#Loading world map
+world <- ne_countries(scale = "medium", returnclass = "sf")
+class(world)
+
+#square around galapagos for ecuador map
+temp <- data.frame(long = c(-92.5, -92.5, -88.5, -88.5, -92.5), 
+                   lat = c(-2.5, 1.5, 1.5, -2.5, -2.5))
+
+#Ecuador map
+Ecuador <- ggplot(data = world) +
+  geom_sf() +
+  coord_sf(xlim = c(-95, -70), ylim = c(-5, 15), expand = FALSE) +
+  theme_bw() +
+  geom_path(data = temp, aes(x = long, y = lat), size = 0.3) +
+  annotate(geom = "text", x = -78, y = -1.2, label = "Ecuador", 
+           fontface = "bold", color = "black", size = 5) +
+  theme(panel.grid = element_blank(),
+        panel.background = element_rect(fil = NULL), 
+        axis.title = element_blank(), 
+        axis.text = element_blank(), 
+        axis.ticks = element_blank())
+  
+library(raster)
+library(ggthemes)
+
+#Combining maps
+FinalMap <- MapBio +
+  annotation_custom(grob = Ecuador, xmin = -90, xmax = -89.5, 
+                    ymin = 1.2, ymax = 2.5)
+FinalMap  
+
+
 # Sites sampled -----------------------------------------------------------
 #Reading data from the sites
 Sites <- openxlsx::read.xlsx("Data/Bacalao_MagicMysteryTour_GPS_Coordinates_Respaldo.xlsx") %>% 
