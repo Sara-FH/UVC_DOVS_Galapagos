@@ -3,36 +3,87 @@
 # Author: Sara Færch Hansen
 # Assisting: Denisse Fierro Arcos
 # Version: 1
-# Date last updated: 2021-01-20
+# Date last updated: 2021-01-13
 # Aim: Compare UVC and DOVS data in the Galapagos related to the Master of Science of Sara Færch Hansen
 ###################################################################################################################
 
 # Uploading libraries -----------------------------------------------------
-{library(tidyverse)
+library(tidyverse)
 library(data.table)
 library(vegan)
 library(chron)
 library(openxlsx) # Changed from library(xlsx)
+library(ggplot2)
 library(ape) #For principal coordinates analysis
 library(ggsignif) #Shows level of significance in ggplots
 library(pairwiseAdonis) #pairwise adonis
 library(ggpubr) #ggarrange, for arranging graphs
-library(RColorBrewer)} #color palette for graph
-#I removed ggplot2 because that is part of the tidyverse, see tidyverse_packages() for more info - DFA
-#I add {} around the libraries to be loaded so you do not have to call them line by line - DFA
+library(RColorBrewer) #color palette for graph
 
-# Uploading supporting datasets -------------------------------------------
-#We upload the supporting info first to make our life easier when cleaning the data
-#Loading excel file containing site keys for all common sites across sampling methods - DFA
-SiteKeys <- openxlsx::read.xlsx("Data/SiteKeys.xlsx")  %>%
-  select(-Island) %>% 
-  #Remove white space from site names
-  mutate(Site = str_trim(Site, "both")) %>% 
-  #Removing accents (e.g., Bahía to Bahia) from all columns - DFA
-  mutate_all(~stringi::stri_trans_general(., "Latin-ASCII")) %>% 
-  #Changing to title case (i.e., first letter of each word is capitalised) between UVC and Site columns - DFA
-  mutate_at(vars(-SiteCode), ~str_to_title(.))
-  
+
+# Uploading data ----------------------------------------------------------
+#Loading UVC and DOVS data
+UVC <- read.csv(file = "Data/UVC.csv", header = TRUE,
+                stringsAsFactors = FALSE) %>% select(-X)
+
+DOVS_FullDB <- read.csv(file = "Data/DOVS.csv", header = TRUE, 
+                        stringsAsFactors = FALSE) %>% select(-X)
+DOVS_FullDB %>% select(Site) %>% subset(endsWith(Site, " ")) %>% unique()
+#there are two sites that ends with a space
+#correcting the names of Shark Bay and Isabela Isla Tortuga, by trimming the Site column
+DOVS_FullDB <- DOVS_FullDB %>% mutate(Site = str_trim(Site, side = "both"))
+
+#Checking if the two methods have the same number of sites
+unique(DOVS_FullDB$Site)
+unique(UVC$Site) 
+#They do not have the same number of sites - also they have different names.
+
+#Deleting Sites only in UVC data
+UVC <- UVC %>% filter(!Site == "Punta Calle", 
+                      !Site == "Santiago noroeste", 
+                      !Site == "Punta Vicente Roca") %>% 
+  #Renaming Sites that are named differently in UVC than in DOVS and SiteInfo
+  mutate(Site = 
+           recode(Site, 
+                  "El Arco" = "Al Arco (Cleaning Station)",
+                  "Bahía Gardner norte" = "Bahía Gardner Norte", 
+                  "Bartholome" = "Bartolome",
+                  "Botella" = "La Botella", 
+                  "Botellita" = "La Botellita", 
+                  "4 Hermanos" = "Cuatro Hermanos", 
+                  "Daphne menor" = "Daphne Menor", 
+                  "El Finado" = "Marchena El Finado", 
+                  "Radar Isabela" = "El Radar", 
+                  "Isla Enderby" = "Enderby", 
+                  "Punta Espinoza" = "Fernandina Punta Espinoza", 
+                  "Punta Manngle" = "Fernandina Punta Mangle", 
+                  "Este 7" = "Isabela Este 7", 
+                  "Este 8" = "Isabela Este 8", 
+                  "Isla Tortuga" = "Isabela Isla Tortuga", 
+                  "Isabela Sur 1" = "Isabela Sur", 
+                  "Luz de día" = "Luz de Día", 
+                  "Marchena oeste" = "Marchena Oeste",
+                  "Pinta Oueste" = "Pinta Oeste", 
+                  "Pinzon" = "Pinzon Norte", 
+                  "Punta Albermarle" = "Punta Albemarle", 
+                  "Marchena Este (Pta Espejo)" = "Punta Espejo", 
+                  "Punta Núñez" = "Punta Nuñez", 
+                  "Rocha sin nombre" = "Roca Sin Nombre", 
+                  "Santiago noreste" = "Santiago Noreste", 
+                  "Poza Azules" = "Santiago Poza Azules", 
+                  "Santiago sureste" = "Santiago Sureste", 
+                  "Seymour norte" = "Seymour Norte"))
+
+#Deleting Sites from DOVS that are not in UVC data
+DOVS_FullDB <- DOVS_FullDB %>% filter(!Site == "Punta Calle 1", 
+                                      !Site == "Punta Calle 2",
+                                      !Site == "Santiago Suroeste", 
+                                      !Site == "Isabela Alcedo")
+#comparing sites again
+unique(DOVS_FullDB$Site[!(DOVS_FullDB$Site %in% UVC$Site)])
+#the Sites "Isabela Isla tortuga", "Islote Gardner", "Pared Norte", 
+#do not have any species present in UVC data and are therefore absent from the site column.
+
 #Vector containing names of non fish species
 NonFish <- c("Eretmochelys imbricata", "Chelonia mydas", "Zalophus wollebaeki", 
              "Phalacrocorax harrisi", "Cardisoma crassum", "Panulirus gracilis",
@@ -41,81 +92,36 @@ NonFish <- c("Eretmochelys imbricata", "Chelonia mydas", "Zalophus wollebaeki",
 
 #Access to the Fish data set with correct names and a/b variables to calculate biomass
 FishDB <- read_csv("https://raw.githubusercontent.com/lidefi87/MangroveProject_CDF/master/Data/FishDB.csv")
-#I have removed the corrections as the actual dataset was corrected - DFA
+#Correcting two Max length typos in the database
+FishDB <- FishDB %>% 
+  #Length for M. birostris and T. meyeni were accidentally in cm instead of meters in data
+  mutate(MaxLgth_m = ifelse(ValidName == "Mobula birostris" & MaxLgth_m == 0.91, 9.1, MaxLgth_m)) %>% 
+  mutate(MaxLgth_m = ifelse(ValidName == "Taeniurops meyeni" & MaxLgth_m == 0.33, 3.3, MaxLgth_m))
 
-
-# Loading UVC and DOVS datasets -------------------------------------------
-#Loading and cleaning UVC data
-UVC <- read.csv(file = "Data/UVC.csv", header = TRUE,
-                stringsAsFactors = FALSE) %>% select(-X) %>% 
-  #Remove white space from site names
-  mutate(Site = str_trim(Site, "both")) %>% 
-  #Removing accents (e.g., Bahía to Bahia) from site names - DFA
-  mutate(Site = stringi::stri_trans_general(Site, "Latin-ASCII")) %>% 
-  #Changing site names to title case (i.e., first letter of each word is capitalised) - DFA
-  mutate(Site = str_to_title(Site)) %>% 
-  #Correcting site names using Site Keys - Sites not in the list will be dropped - DFA
-  left_join(SiteKeys %>% select(UVC, Site, SiteCode), by = c("Site" = "UVC")) %>% 
-  #Remove original site column - DFA
-  select(-Site) %>% 
-  #Rename new site column as Site - DFA
-  rename("Site" = "Site.y") %>% 
-  #Remove any sites with no corrected name - DFA
-  drop_na(Site)
-
-
-#Loading and cleaning DOVS data
-DOVS_FullDB <- read.csv(file = "Data/DOVS.csv", header = TRUE, 
-                        stringsAsFactors = FALSE) %>% select(-X) %>% 
-  #I have simplified the code you had previosuly. Check Diff if you want to compare the previous
-  #version with this approach - DFA
-  #Remove white space from site names
-  mutate(Site = str_trim(Site, "both")) %>% 
-  #Removing accents (e.g., Bahía to Bahia) from site names - DFA
-  mutate(Site = stringi::stri_trans_general(Site, "Latin-ASCII")) %>% 
-  #Changing site names to title case (i.e., first letter of each word is capitalised) - DFA
-  mutate(Site = str_to_title(Site)) %>% 
-  #Correcting site names using Site Keys - Sites not in the list will be dropped - DFA
-  left_join(SiteKeys %>% select(DOVS, Site, SiteCode), by = c("Site" = "DOVS")) %>% 
-  #Remove original site column - DFA
-  select(-Site) %>% 
-  #Rename new site column as Site - DFA
-  rename("Site" = "Site.y") %>% 
-  #Remove any sites with no corrected name - DFA
-  drop_na(Site)
-  
-#Checking if the two methods have the same number of sites
-#Check which site names are not the same across methodologies - DFA
-#Sites that appear in DOVS only - DFA
-unique(DOVS_FullDB$Site)[!unique(DOVS_FullDB$Site) %in% unique(UVC$Site)]
-#Sites that appear in UVC only - DFA
-unique(UVC$Site)[which(!unique(UVC$Site) %in% unique(DOVS_FullDB$Site))]
-#the Sites "Isabela Isla tortuga", "Islote Gardner", "Pared Norte", 
-#do not have any species present in UVC data and are therefore absent from the site column, but they were sampled.
-
+#Loading site keys excel file
+SiteKeys <- openxlsx::read.xlsx("Data/SiteKeys.xlsx")  %>%
+  select(-Island)
 
 #Loading data with coordinates and open/closed to fishing status
-SiteInfo <- read.csv("Data/GPScoords_BacalaoMMT_Corrected.csv") %>% 
-  #Changing first letter of column names to uppercase - DFA
-  janitor::clean_names(case = "title") %>%
-  #We basically apply the same methods as before to ensure consistency - DFA
-  #Remove white space from site names - DFA
-  mutate(Site = str_trim(Site, "both")) %>% 
-  #Removing accents (e.g., Bahía to Bahia) from site names, islands and zoning - DFA
-  mutate_at(vars(c(Site, Island, Zoning)), ~stringi::stri_trans_general(., "Latin-ASCII")) %>% 
-  #Changing site names and bioregions to title case (i.e., first letter of each word is capitalised) - DFA
-  mutate_at(vars(c(Site, Bioregion)), str_to_title) %>% 
-  #Correcting site names using Site Keys - Sites not in the list will be dropped - DFA
-  left_join(SiteKeys %>% select(SiteName, Site, SiteCode), by = c("Site" = "SiteName")) %>% 
-  #Remove dashes from bioregion names - DFA
-  mutate(Bioregion = str_replace(Bioregion, "-", " ")) %>% 
-  #Remove original site column - DFA
-  select(-Site) %>% 
-  #Rename new site column as Site - DFA
-  rename("Site" = "Site.y") %>% 
-  #Remove any sites with no corrected name - DFA
-  drop_na(Site)
+Status <- read.csv("Data/GPScoords_BacalaoMMT_Corrected.csv") 
+colnames(Status) <- str_to_title(colnames(Status)) #Changing first letter of column to uppercase
+#Checking if Status and SiteKeys has the same site names
+Status$Site[!(Status$Site %in% SiteKeys$SiteName)]
+#Renaming sites, so they are similar in Status and SiteKeys
+Status <- Status %>% mutate(Site = 
+                              recode(Site, 
+                                     "Bahía Gardner norte" =  "Bahía Gardner Norte", 
+                                     "Isabela Sur " = "Isabela Sur", 
+                                     "Daphne menor" = "Daphne Menor", 
+                                     "Luz de día" = "Luz de Día",
+                                     "Punta Vicente Roca (No DOVS)" = "Punta Vicente Roca"))
+#Checking that the sites are the same
+Status$Site[!(Status$Site %in% SiteKeys$SiteName)]
+#Sites that are not the same, but will be deleted at the end:
+#"Isabela Alcedo", "Punta Calle 1", "Punta Calle 2", "Punta Vicente Roca", "Santiago Suroeste"
 
+#Merging Status and Sitekeys in SiteInfo, all information in one place
+SiteInfo <- Status %>% left_join(SiteKeys, by = c("Site"="SiteName"))
 
 #Loading data for site length
 SiteLength <- openxlsx::read.xlsx("Data/Periods & Transect Lengths_Bacalao Magic mystery tour_2014.xlsx",
@@ -123,37 +129,42 @@ SiteLength <- openxlsx::read.xlsx("Data/Periods & Transect Lengths_Bacalao Magic
   mutate(Time = chron::times(as.numeric(Time))) %>% #date was written in two different formats and it
   #was causing problems when reading these values, time was changed using the chron library
   select(-c(Diver, Dive.duration, Island, Bioregion, Date)) %>% 
-  #Changing first letter of column names to uppercase and an underscore between words - DFA
-  janitor::clean_names(case = "parsed") %>%
-  #Rename date corrected to date
-  rename("Date" = "Date_Corrected") %>%
-  mutate(Transect_code = paste0("T", Transect_code)) %>%  #Adding T, so that Transect_code 
-  #and period from DOVS_FullDB can be macthed when joining data frames
-  #Remove white space from site names - DFA
-  mutate(Site = str_trim(Site, "both")) %>% 
-  #Removing accents (e.g., Bahía to Bahia) from site names - DFA
-  mutate(Site = stringi::stri_trans_general(Site, "Latin-ASCII")) %>% 
-  #Changing site names to title case (i.e., first letter of each word is capitalised) - DFA
-  mutate(Site = str_to_title(Site)) %>% 
-  #Correcting site names using Site Keys - Sites not in the list will be dropped - DFA
-  left_join(SiteKeys %>% select(SiteName, Site, SiteCode), by = c("Site" = "SiteName")) %>% 
-  #Remove original site column - DFA
-  select(-Site) %>% 
-  #Rename new site column as Site - DFA
-  rename("Site" = "Site.y") %>% 
-  #Remove any sites with no corrected name - DFA
-  drop_na(Site)
+  rename("Transect_code" = "Transect.code", 
+         "Date" = "DateCorrected",
+         "Transect_length_m" = "Transect.length.(m)") %>% 
+  mutate(Transect_code = as.character(paste("T", Transect_code, sep = ""))) #Adding T, so that Transect_code 
+#and period from DOVS_FullDB can be macthed when joining data frames
 
+#Checking if SiteInfo and SiteLength has the same site names
+unique(SiteLength$Site[!(SiteLength$Site %in% SiteInfo$Site)])
+#Changing site names so they match in SiteLength and SiteInfo
+SiteLength <- SiteLength %>% mutate(Site = 
+                                      recode(Site, 
+                                             "Bahía Gardner norte" =  "Bahía Gardner Norte", 
+                                             "Daphne menor" = "Daphne Menor",
+                                             "Isabela Sur " = "Isabela Sur",
+                                             "Luz de día" = "Luz de Día"))
 #Checking that the sites are the same
 unique(SiteLength$Site[!(SiteLength$Site %in% SiteInfo$Site)]) #Sites are the same
 
 #Joining the data from SiteLength and SiteInfo in one dataframe
-SiteInfo <- SiteInfo %>% left_join(SiteLength, by = c("Site", "SiteCode")) %>% 
-  rename(Period = Transect_code)
+SiteInfo <- SiteInfo %>% left_join(SiteLength, by = "Site") %>% 
+  rename(Period = Transect_code) %>%  #Now Period is the same in SiteInfo and DOVS_FullDB
+  mutate(Site = stringi::stri_trans_general(Site, "Latin-ASCII"),
+         Island = stringi::stri_trans_general(Island, "Latin-ASCII")) %>% 
+  #Removing sites from SiteInfo, that are missing either from UVC or DOVS
+  filter(!Site == "Isabela Alcedo", 
+         !Site == "Punta Calle 1", 
+         !Site == "Punta Calle 2", 
+         !Site == "Punta Vicente Roca", 
+         !Site == "Santiago Suroeste") %>% 
+  mutate(Bioregion = recode(Bioregion, 
+                            "Centro-sur" = "Centro Sur", 
+                            "Centro sur" = "Centro Sur", 
+                            "Oeste fria" = "Oeste Fria"))
 
 #Removing excess variables
-rm(SiteKeys, SiteLength)
-
+rm(SiteKeys, Status, SiteLength)
 
 # Tidying up UVC data -----------------------------------------------------
 #Checking species names in UVC data
@@ -182,11 +193,13 @@ UVC <- UVC %>% mutate(SpeciesName =
   filter(!ValidName %in% NonFish) %>% 
   select(-c(Island)) %>% #Island will be added when SiteInfo is joined
   #Add T to Transect_code and renaming to period, so it is similar to the column in SiteInfo
-  mutate(Transect_code = paste0("T", Transect_code)) %>% 
+  mutate(Transect_code = as.character(paste("T", Transect_code, sep = ""))) %>% 
   rename(Period = Transect_code) %>% 
+  #Remove any accents in the names of sites, before joining with SiteInfo
+  mutate(Site = stringi::stri_trans_general(Site, "Latin-ASCII")) %>% 
   #Adding SiteInfo to the sites in the UVC data
-  left_join(SiteInfo %>% select(-c(Date, Year, Month, Bioregion)), 
-            by = c("Site", "Period", "SiteCode")) %>% 
+  left_join(SiteInfo %>% select(-c(DOVS, UVC, Date, Year, Month, Bioregion, )), 
+            by = c("Site" = "Site", "Period" = "Period")) %>% 
   #Going from sizeclass to length of fish in cm
   #renaming the sizeclass that is smaller than 30 cm, and longer than 300 cm.
   mutate(SizeClass = gsub("S", "", SizeClass)) %>% 
@@ -230,7 +243,6 @@ UVC <- UVC %>%
   uncount(., N) %>% #uncounting N to have one individual per row
   mutate(N = 1) #Adding column for N, as it is removed by uncount
 
-
 # Tidying up DOVS data -----------------------------------------------------
 #Tidying up DOVS data - Saving the clean data set as a different variable
 DOVS <- DOVS_FullDB %>% 
@@ -265,8 +277,10 @@ DOVS <- DOVS_FullDB %>%
   #Now we remove non fish species
   filter(!ValidName %in% NonFish) %>% 
   select(-c(SpeciesName, Island)) %>% 
+  #Remove any accents in the names of sites, before joining with SiteInfo
+  mutate(Site = stringi::stri_trans_general(Site, "Latin-ASCII")) %>% 
   #Left joining info about sites
-  left_join(SiteInfo %>% select(-c(Depth)), by = c("Site", "SiteCode", "Period"))
+  left_join(SiteInfo %>% select(-c(UVC, DOVS, Depth)), by = c("Site" = "Site", "Period" = "Period")) 
 
 #Remove variables that are no longer needed
 rm(DOVS_FullDB)
@@ -285,7 +299,7 @@ DOVS %>%
   subset(!Period == "")  #Subsetting rows where there is a period, but no data in SiteInfo_period
 
 #Deleting Periods with no site length
-DOVS <- DOVS %>% filter(!(Site == "Punta Espinoza" & Period == "T14"), 
+DOVS <- DOVS %>% filter(!(Site == "Fernandina Punta Espinoza" & Period == "T14"), 
                         !(Site == "Genovesa Norte" & Period == "T10"), 
                         !(Site == "Isabela Este 5" & Period == "T3"), 
                         !(Site == "Banana" & Period == "T9"))
@@ -298,6 +312,7 @@ DOVS <- DOVS %>% filter(ValidName %in% SpeciesUVC)
 
 
 # Length check ------------------------------------------------------------
+
 #Identifying individuals that are too large in UVC data
 TooLarge_UVC <- UVC %>% #Using data from UVC
   left_join(FishDB %>% select(ValidName, MaxLgth_m) %>% unique(), #Joining max length and Trophic category
@@ -1237,21 +1252,6 @@ PCO_biomass <- PCO_biomass %>%
   left_join(SiteInfo %>% select(Site, Fishing, Bioregion, Island) %>% unique(), 
             by = c("Site")) #Adding site info on fishing (closed or open to fishing), bioregion and island
 
-
-# Coefficient solution DFA ------------------------------------------------
-# Principal coordinate analysis and simple ordination plot
-#We calculate this in the same way you did above
-Bio_mat_pcoa <- pcoa(Bio_mat_dist)
-#We extract scores from PCoA and calculate correlation with biomass matrix
-SpCorr <- envfit(Bio_mat_pcoa$vectors, Bio_mat, permutations = 9999)
-#Check out the scores to each dimension from the correlation calculated above 
-scores(SpCorr, "vectors")
-#Plot your PCoA
-plot(Bio_mat_pcoa$vectors, type = "p")
-#Overlay species which have significant correlation (p <= 0.05)
-plot(SpCorr, p.max = 0.05, col = "red")
-#You can check the actual correlation coefficients (Pearson) using the line below
-SpCorr$vectors$r
 
 # PCO plots exploring data patterns ---------------------------------------
 
