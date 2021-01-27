@@ -61,12 +61,16 @@ Sp_sites <- UVC %>%
   mutate(sp_sites = length(unique(Site))) %>% 
   ungroup()
 
+#Removing variable
+rm(Sp_sites)
 
 # Mean biomass, richness and density for fishing --------------------------
 
 #Mean biomass - fishing
 mean_biomass <- Biomass %>% 
   group_by(Fishing) %>% 
+  #Question DFA - is this the correct way to calculate the mean, since sites with zero individuals of 
+  #a species is not counted
   summarise(Mean_bio = mean(Kg_500m2_site), Fishing, Kg_500m2_site) %>% 
   #Standard error of the mean
   mutate(SE = sd(Kg_500m2_site)/sqrt(length(Kg_500m2_site)))
@@ -75,6 +79,7 @@ mean_biomass <- Biomass %>%
 #mean species richness - fishing
 mean_richness <- Richness %>% 
   group_by(Fishing) %>% 
+  #Question - check mean calculation
   summarise(Mean_rich = mean(Site_sp_500m2), Fishing, Site_sp_500m2) %>% 
   #standard error of the mean
   mutate(SE = sd(Site_sp_500m2)/sqrt(length(Site_sp_500m2)))
@@ -83,6 +88,7 @@ mean_richness <- Richness %>%
 #mean density - fishing
 mean_density <- Density %>% 
   group_by(Fishing) %>% 
+  #Question - check mean calculation
   summarise(Mean_den = mean(N_site_500m2), Fishing, N_site_500m2) %>% 
   #SE
   mutate(SE = sd(N_site_500m2)/sqrt(length(N_site_500m2)))
@@ -95,6 +101,7 @@ rm(mean_biomass, mean_richness, mean_density)
 #mean species richness
 mean_richness1 <- Richness %>% 
   group_by(Bioregion) %>% 
+  #Question - check mean calculation
   summarise(Mean_rich = mean(Site_sp_500m2), Bioregion, Site_sp_500m2) %>% 
   #standard error of the mean
   mutate(SE_R = sd(Site_sp_500m2)/sqrt(length(Site_sp_500m2))) %>% 
@@ -105,6 +112,7 @@ mean_richness1 <- Richness %>%
 mean_density1 <- Density %>% 
   left_join(SiteInfo %>% select(Site, Bioregion) %>% unique(), by = "Site") %>% 
   group_by(Bioregion) %>% 
+  #Question - check mean calculation
   summarise(Mean_den = mean(N_site_500m2), Bioregion, N_site_500m2) %>% 
   #SE
   mutate(SE_D = sd(N_site_500m2)/sqrt(length(N_site_500m2))) %>% 
@@ -115,6 +123,7 @@ mean_density1 <- Density %>%
 mean_biomass1 <- Biomass %>% 
   left_join(SiteInfo %>% select(Site, Bioregion) %>% unique(), by = "Site") %>% 
   group_by(Bioregion) %>% 
+  #Question - check mean calculation
   summarise(Mean_bio = mean(Kg_500m2_site), Bioregion, Kg_500m2_site) %>% 
   #Standard error of the mean
   mutate(SE_B = sd(Kg_500m2_site)/sqrt(length(Kg_500m2_site))) %>% 
@@ -134,6 +143,7 @@ rm(mean_richness1, mean_density1, mean_biomass1)
 #mean species richness - interaction with fishing
 mean_richness2 <- Richness %>% 
   group_by(Bioregion, Fishing) %>% 
+  #Question - check mean calculation
   summarise(Mean_rich = mean(Site_sp_500m2), Bioregion, Fishing, Site_sp_500m2) %>% 
   #standard error of the mean
   mutate(SE_R = sd(Site_sp_500m2)/sqrt(length(Site_sp_500m2))) %>% 
@@ -143,7 +153,8 @@ mean_richness2 <- Richness %>%
 #mean density - bioregion - interaction with fishing
 mean_density2 <- Density %>% 
   left_join(SiteInfo %>% select(Site, Bioregion) %>% unique(), by = "Site") %>% 
-  group_by(Bioregion, Fishing) %>% 
+  group_by(Bioregion, Fishing) %>%
+  #Question - check mean calculation
   summarise(Mean_den = mean(N_site_500m2), Bioregion, Fishing, N_site_500m2) %>% 
   #SE
   mutate(SE_D = sd(N_site_500m2)/sqrt(length(N_site_500m2))) %>% 
@@ -154,6 +165,7 @@ mean_density2 <- Density %>%
 mean_biomass2 <- Biomass %>% 
   left_join(SiteInfo %>% select(Site, Bioregion) %>% unique(), by = "Site") %>% 
   group_by(Bioregion, Fishing) %>% 
+  #Question - check mean calculation
   summarise(Mean_bio = mean(Kg_500m2_site), Bioregion, Fishing, Kg_500m2_site) %>% 
   #Standard error of the mean
   mutate(SE_B = sd(Kg_500m2_site)/sqrt(length(Kg_500m2_site))) %>% 
@@ -173,6 +185,7 @@ rm(means, means_bioreg)
 
 # Species on arrows in PCO plots ------------------------------------------
 
+#Question - check new names after Pearson correlation corrections
 #PCO for density, mean density for species on arrows
 sp_den_PCO <- Density_sp %>% 
   filter(ValidName == "Lutjanus argentiventris" | 
@@ -182,6 +195,7 @@ sp_den_PCO <- Density_sp %>%
          ValidName == "Carcharhinus galapagensis" |
          ValidName == "Sphyrna lewini") %>% 
   group_by(ValidName) %>% 
+  #Question - check mean calculation
   summarise(Mean_den = mean(N_site_sp), ValidName, N_site_sp) %>% 
   #SE
   mutate(SE = sd(N_site_sp)/sqrt(length(N_site_sp))) %>% 
@@ -189,7 +203,7 @@ sp_den_PCO <- Density_sp %>%
   unique()
 
 
-
+#Question - check new names after Pearson correlation corrections
 #PCO for biomass, mean density for species on arrows
 sp_bio_PCO <- Biomass_sp %>% 
   filter(ValidName == "Lutjanus argentiventris" | 
@@ -201,6 +215,7 @@ sp_bio_PCO <- Biomass_sp %>%
            ValidName == "Sphyrna lewini" |
            ValidName == "Lutjanus novemfasciatus" ) %>% 
   group_by(ValidName) %>% 
+  #Question - check mean calculation
   summarise(Mean_den = mean(Kg_site_sp), ValidName, Kg_site_sp) %>% 
   #SE
   mutate(SE = sd(Kg_site_sp)/sqrt(length(Kg_site_sp))) %>% 
@@ -229,9 +244,11 @@ Bio_sp_D <- DOVS %>%
   mutate(Transect_area = Transect_length_m*5) %>% #Calculating transect area using transect width 5m
   group_by(Site, ValidName) %>% 
   #Calculating gram per 500m2
+  #Question - change they way to calculate per 500m2 if we decide to do it for all calculations
   summarise(Gram_500m2 = (Biomass_sp_period/Transect_area)*500, 
             Method, Fishing, SiteCode, Biomass_sp_period, Transect_area, Period) %>% 
   #Calculating the biomass of each species per site in g per 500m2 (as average of periods)
+  #Question - check mean calculations, is it correct not to use species with zero counts??
   summarise(Gram_site_sp = mean(Gram_500m2), 
             ValidName, Method, Fishing, SiteCode, Biomass_sp_period, Transect_area, Period) %>%
   #Going from g to kg for the biomass
@@ -261,9 +278,11 @@ Bio_sp_U <- UVC %>%
   mutate(Transect_area = Transect_length_m*5) %>% #Calculating transect area using transect width 5m
   group_by(Site, ValidName) %>% 
   #Calculating gram per 500m2
+  #Question - change they way to calculate per 500m2 if we decide to do it for all calculations
   summarise(Gram_500m2 = (Biomass_sp_period/Transect_area)*500, 
             Method, Fishing, SiteCode, Biomass_sp_period, Transect_area, Period) %>% 
   #Calculating the biomass of each species per site in g per 500m2 (as average of periods)
+  #Question - check mean calculation
   summarise(Gram_site_sp = mean(Gram_500m2), 
             ValidName, Method, Fishing, SiteCode, Biomass_sp_period, Transect_area, Period) %>%
   #Going from g to kg for the biomass
@@ -296,8 +315,10 @@ Den_sp_D <- DOVS %>%
   summarise(N_period = sum(N), #Sum of abundance of species within each period
             Method, Fishing, SiteCode, Transect_area, Period) %>% 
   unique() %>%
+  #Question - change they way to calculate per 500m2 if we decide to do it for all calculations
   mutate(N_500m2 = (N_period/Transect_area)*500) %>% #Number/500m2
   group_by(Site, ValidName) %>% 
+  #Question - check mean calculation
   summarise(N_site_sp = mean(N_500m2), #Calculating average abundance of each species per site
             Method, Fishing, SiteCode, ValidName, N_500m2, Transect_area, Period) %>% 
   group_by(Site, ValidName) %>% 
@@ -314,8 +335,10 @@ Den_sp_U <- UVC %>%
   summarise(N_period = sum(N), #Sum of abundance of species within each period
             Method, Fishing, SiteCode, Transect_area, Period) %>% 
   unique() %>%
+  #Question - change they way to calculate per 500m2 if we decide to do it for all calculations
   mutate(N_500m2 = (N_period/Transect_area)*500) %>% #Number/500m2
   group_by(Site, ValidName) %>% 
+  #Question - check mean calculation
   summarise(N_site_sp = mean(N_500m2), #Calculating average abundance of each species per site
             Method, Fishing, SiteCode, ValidName, N_500m2, Transect_area, Period) %>% 
   group_by(Site, ValidName) %>% 
@@ -330,8 +353,6 @@ Den_sp <- rbind(Den_sp_D, Den_sp_U) %>%
 rm(Den_sp_D, Den_sp_U)
 
 
-
-
 # Mean biomass and density for PCO's --------------------------------------
 
 ### no-take and fishing zones ###
@@ -340,6 +361,7 @@ rm(Den_sp_D, Den_sp_U)
 mean_zones1 <- Biomass_sp %>% 
   group_by(ValidName, Fishing) %>% 
   #making column for mean biomass per species per zone
+  #Question - check mean calculation
   mutate(Kg_500m2_zone = mean(Kg_site_sp)) %>% 
   #SE
   mutate(SE_kg = sd(Kg_site_sp)/sqrt(length(Kg_site_sp))) %>% 
@@ -351,6 +373,7 @@ mean_zones1 <- Biomass_sp %>%
 mean_zones2 <- Density_sp %>% 
   group_by(ValidName, Fishing) %>% 
   #making column for mean biomass per species per zone
+  #Question - check mean calculation
   mutate(N_500m2_zone = mean(N_site_sp)) %>% 
   #SE
   mutate(SE_kg = sd(N_site_sp)/sqrt(length(N_site_sp))) %>% 
@@ -364,6 +387,7 @@ mean_bioreg1 <- Biomass_sp %>%
   left_join(SiteInfo %>% select(Site, Bioregion) %>% unique(), by = "Site") %>% 
   group_by(ValidName, Bioregion) %>% 
   #making column for mean biomass per species per bioregion
+  #Question - check mean calculation
   mutate(Kg_500m2_bioregion = mean(Kg_site_sp)) %>% 
   #SE
   mutate(SE = sd(Kg_site_sp)/sqrt(length(Kg_site_sp))) %>% 
@@ -378,6 +402,7 @@ mean_bioreg2 <- Density_sp %>%
   left_join(SiteInfo %>% select(Site, Bioregion) %>% unique(), by = "Site") %>% 
   group_by(ValidName, Bioregion) %>% 
   #making column for mean biomass per species per bioregion
+  #Question - check mean calculation
   mutate(N_500m2_bioregion = mean(N_site_sp)) %>% 
   #SE
   mutate(SE = sd(N_site_sp)/sqrt(length(N_site_sp))) %>% 
