@@ -3,87 +3,34 @@
 # Author: Sara Færch Hansen
 # Assisting: Denisse Fierro Arcos
 # Version: 1
-# Date last updated: 2021-01-13
+# Date last updated: 2021-01-20
 # Aim: Compare UVC and DOVS data in the Galapagos related to the Master of Science of Sara Færch Hansen
 ###################################################################################################################
 
 # Uploading libraries -----------------------------------------------------
-library(tidyverse)
+{library(tidyverse)
 library(data.table)
 library(vegan)
 library(chron)
-library(openxlsx) # Changed from library(xlsx)
-library(ggplot2)
+library(openxlsx)
 library(ape) #For principal coordinates analysis
-library(ggsignif) #Shows level of significance in ggplots
-library(pairwiseAdonis) #pairwise adonis
+library(ggsignif) #Used for level of significance in ggplots
+library(pairwiseAdonis) #pairwise PERMANOVA
 library(ggpubr) #ggarrange, for arranging graphs
-library(RColorBrewer) #color palette for graph
+library(RColorBrewer)} #color palette for graph
 
-
-# Uploading data ----------------------------------------------------------
-#Loading UVC and DOVS data
-UVC <- read.csv(file = "Data/UVC.csv", header = TRUE,
-                stringsAsFactors = FALSE) %>% select(-X)
-
-DOVS_FullDB <- read.csv(file = "Data/DOVS.csv", header = TRUE, 
-                        stringsAsFactors = FALSE) %>% select(-X)
-DOVS_FullDB %>% select(Site) %>% subset(endsWith(Site, " ")) %>% unique()
-#there are two sites that ends with a space
-#correcting the names of Shark Bay and Isabela Isla Tortuga, by trimming the Site column
-DOVS_FullDB <- DOVS_FullDB %>% mutate(Site = str_trim(Site, side = "both"))
-
-#Checking if the two methods have the same number of sites
-unique(DOVS_FullDB$Site)
-unique(UVC$Site) 
-#They do not have the same number of sites - also they have different names.
-
-#Deleting Sites only in UVC data
-UVC <- UVC %>% filter(!Site == "Punta Calle", 
-                      !Site == "Santiago noroeste", 
-                      !Site == "Punta Vicente Roca") %>% 
-  #Renaming Sites that are named differently in UVC than in DOVS and SiteInfo
-  mutate(Site = 
-           recode(Site, 
-                  "El Arco" = "Al Arco (Cleaning Station)",
-                  "Bahía Gardner norte" = "Bahía Gardner Norte", 
-                  "Bartholome" = "Bartolome",
-                  "Botella" = "La Botella", 
-                  "Botellita" = "La Botellita", 
-                  "4 Hermanos" = "Cuatro Hermanos", 
-                  "Daphne menor" = "Daphne Menor", 
-                  "El Finado" = "Marchena El Finado", 
-                  "Radar Isabela" = "El Radar", 
-                  "Isla Enderby" = "Enderby", 
-                  "Punta Espinoza" = "Fernandina Punta Espinoza", 
-                  "Punta Manngle" = "Fernandina Punta Mangle", 
-                  "Este 7" = "Isabela Este 7", 
-                  "Este 8" = "Isabela Este 8", 
-                  "Isla Tortuga" = "Isabela Isla Tortuga", 
-                  "Isabela Sur 1" = "Isabela Sur", 
-                  "Luz de día" = "Luz de Día", 
-                  "Marchena oeste" = "Marchena Oeste",
-                  "Pinta Oueste" = "Pinta Oeste", 
-                  "Pinzon" = "Pinzon Norte", 
-                  "Punta Albermarle" = "Punta Albemarle", 
-                  "Marchena Este (Pta Espejo)" = "Punta Espejo", 
-                  "Punta Núñez" = "Punta Nuñez", 
-                  "Rocha sin nombre" = "Roca Sin Nombre", 
-                  "Santiago noreste" = "Santiago Noreste", 
-                  "Poza Azules" = "Santiago Poza Azules", 
-                  "Santiago sureste" = "Santiago Sureste", 
-                  "Seymour norte" = "Seymour Norte"))
-
-#Deleting Sites from DOVS that are not in UVC data
-DOVS_FullDB <- DOVS_FullDB %>% filter(!Site == "Punta Calle 1", 
-                                      !Site == "Punta Calle 2",
-                                      !Site == "Santiago Suroeste", 
-                                      !Site == "Isabela Alcedo")
-#comparing sites again
-unique(DOVS_FullDB$Site[!(DOVS_FullDB$Site %in% UVC$Site)])
-#the Sites "Isabela Isla tortuga", "Islote Gardner", "Pared Norte", 
-#do not have any species present in UVC data and are therefore absent from the site column.
-
+# Uploading supporting datasets -------------------------------------------
+#We upload the supporting info first to make our life easier when cleaning the data
+#Loading excel file containing site keys for all common sites across sampling methods
+SiteKeys <- openxlsx::read.xlsx("Data/SiteKeys.xlsx")  %>%
+  select(-Island) %>% 
+  #Remove white space from site names
+  mutate(Site = str_trim(Site, "both")) %>% 
+  #Removing accents (e.g., Bahía to Bahia) from all columns
+  mutate_all(~stringi::stri_trans_general(., "Latin-ASCII")) %>% 
+  #Changing to title case (i.e., first letter of each word is capitalised) between UVC and Site columns
+  mutate_at(vars(-SiteCode), ~str_to_title(.))
+  
 #Vector containing names of non fish species
 NonFish <- c("Eretmochelys imbricata", "Chelonia mydas", "Zalophus wollebaeki", 
              "Phalacrocorax harrisi", "Cardisoma crassum", "Panulirus gracilis",
@@ -92,36 +39,78 @@ NonFish <- c("Eretmochelys imbricata", "Chelonia mydas", "Zalophus wollebaeki",
 
 #Access to the Fish data set with correct names and a/b variables to calculate biomass
 FishDB <- read_csv("https://raw.githubusercontent.com/lidefi87/MangroveProject_CDF/master/Data/FishDB.csv")
-#Correcting two Max length typos in the database
-FishDB <- FishDB %>% 
-  #Length for M. birostris and T. meyeni were accidentally in cm instead of meters in data
-  mutate(MaxLgth_m = ifelse(ValidName == "Mobula birostris" & MaxLgth_m == 0.91, 9.1, MaxLgth_m)) %>% 
-  mutate(MaxLgth_m = ifelse(ValidName == "Taeniurops meyeni" & MaxLgth_m == 0.33, 3.3, MaxLgth_m))
+#Database updated in January 2021
 
-#Loading site keys excel file
-SiteKeys <- openxlsx::read.xlsx("Data/SiteKeys.xlsx")  %>%
-  select(-Island)
+
+# Loading UVC and DOVS datasets -------------------------------------------
+#Loading and cleaning UVC data
+UVC <- read.csv(file = "Data/UVC.csv", header = TRUE,
+                stringsAsFactors = FALSE) %>% select(-X) %>% 
+  #Remove white space from site names
+  mutate(Site = str_trim(Site, "both")) %>% 
+  #Removing accents (e.g., Bahía to Bahia) from site names
+  mutate(Site = stringi::stri_trans_general(Site, "Latin-ASCII")) %>% 
+  #Changing site names to title case (i.e., first letter of each word is capitalised)
+  mutate(Site = str_to_title(Site)) %>% 
+  #Correcting site names using Site Keys - Sites not in the list will be dropped
+  left_join(SiteKeys %>% select(UVC, Site, SiteCode), by = c("Site" = "UVC")) %>% 
+  #Remove original site column
+  select(-Site) %>% 
+  #Rename new site column as Site
+  rename("Site" = "Site.y") %>% 
+  #Remove any sites with no corrected name
+  drop_na(Site)
+
+
+#Loading and cleaning DOVS data
+DOVS_FullDB <- read.csv(file = "Data/DOVS.csv", header = TRUE, 
+                        stringsAsFactors = FALSE) %>% select(-X) %>% 
+  #Remove white space from site names
+  mutate(Site = str_trim(Site, "both")) %>% 
+  #Removing accents (e.g., Bahía to Bahia) from site names
+  mutate(Site = stringi::stri_trans_general(Site, "Latin-ASCII")) %>% 
+  #Changing site names to title case (i.e., first letter of each word is capitalised)
+  mutate(Site = str_to_title(Site)) %>% 
+  #Correcting site names using Site Keys - Sites not in the list will be dropped
+  left_join(SiteKeys %>% select(DOVS, Site, SiteCode), by = c("Site" = "DOVS")) %>% 
+  #Remove original site column
+  select(-Site) %>% 
+  #Rename new site column as Site
+  rename("Site" = "Site.y") %>% 
+  #Remove any sites with no corrected name
+  drop_na(Site)
+  
+#Check which site names are not the same across methodologies - DFA
+#Sites that appear in DOVS only - DFA
+unique(DOVS_FullDB$Site)[!unique(DOVS_FullDB$Site) %in% unique(UVC$Site)]
+#Sites that appear in UVC only - DFA
+unique(UVC$Site)[which(!unique(UVC$Site) %in% unique(DOVS_FullDB$Site))]
+#the Sites "Isabela Isla tortuga", "Islote Gardner", "Pared Norte", 
+#do not have any species present in UVC data and are therefore absent from the site column, but they were sampled.
+
 
 #Loading data with coordinates and open/closed to fishing status
-Status <- read.csv("Data/GPScoords_BacalaoMMT_Corrected.csv") 
-colnames(Status) <- str_to_title(colnames(Status)) #Changing first letter of column to uppercase
-#Checking if Status and SiteKeys has the same site names
-Status$Site[!(Status$Site %in% SiteKeys$SiteName)]
-#Renaming sites, so they are similar in Status and SiteKeys
-Status <- Status %>% mutate(Site = 
-                              recode(Site, 
-                                     "Bahía Gardner norte" =  "Bahía Gardner Norte", 
-                                     "Isabela Sur " = "Isabela Sur", 
-                                     "Daphne menor" = "Daphne Menor", 
-                                     "Luz de día" = "Luz de Día",
-                                     "Punta Vicente Roca (No DOVS)" = "Punta Vicente Roca"))
-#Checking that the sites are the same
-Status$Site[!(Status$Site %in% SiteKeys$SiteName)]
-#Sites that are not the same, but will be deleted at the end:
-#"Isabela Alcedo", "Punta Calle 1", "Punta Calle 2", "Punta Vicente Roca", "Santiago Suroeste"
+SiteInfo <- read.csv("Data/GPScoords_BacalaoMMT_Corrected.csv") %>% 
+  #Changing first letter of column names to uppercase
+  janitor::clean_names(case = "title") %>%
+  #We basically apply the same methods as before to ensure consistency
+  #Remove white space from site names
+  mutate(Site = str_trim(Site, "both")) %>% 
+  #Removing accents (e.g., Bahía to Bahia) from site names, islands and zoning
+  mutate_at(vars(c(Site, Island, Zoning)), ~stringi::stri_trans_general(., "Latin-ASCII")) %>% 
+  #Changing site names and bioregions to title case (i.e., first letter of each word is capitalised)
+  mutate_at(vars(c(Site, Bioregion)), str_to_title) %>% 
+  #Correcting site names using Site Keys - Sites not in the list will be dropped
+  left_join(SiteKeys %>% select(SiteName, Site, SiteCode), by = c("Site" = "SiteName")) %>% 
+  #Remove dashes from bioregion names
+  mutate(Bioregion = str_replace(Bioregion, "-", " ")) %>% 
+  #Remove original site column
+  select(-Site) %>% 
+  #Rename new site column as Site
+  rename("Site" = "Site.y") %>% 
+  #Remove any sites with no corrected name
+  drop_na(Site)
 
-#Merging Status and Sitekeys in SiteInfo, all information in one place
-SiteInfo <- Status %>% left_join(SiteKeys, by = c("Site"="SiteName"))
 
 #Loading data for site length
 SiteLength <- openxlsx::read.xlsx("Data/Periods & Transect Lengths_Bacalao Magic mystery tour_2014.xlsx",
@@ -129,49 +118,45 @@ SiteLength <- openxlsx::read.xlsx("Data/Periods & Transect Lengths_Bacalao Magic
   mutate(Time = chron::times(as.numeric(Time))) %>% #date was written in two different formats and it
   #was causing problems when reading these values, time was changed using the chron library
   select(-c(Diver, Dive.duration, Island, Bioregion, Date)) %>% 
-  rename("Transect_code" = "Transect.code", 
-         "Date" = "DateCorrected",
-         "Transect_length_m" = "Transect.length.(m)") %>% 
-  mutate(Transect_code = as.character(paste("T", Transect_code, sep = ""))) #Adding T, so that Transect_code 
-#and period from DOVS_FullDB can be macthed when joining data frames
+  #Changing first letter of column names to uppercase and an underscore between words
+  janitor::clean_names(case = "parsed") %>%
+  #Rename date corrected to date
+  rename("Date" = "Date_Corrected") %>%
+  mutate(Transect_code = paste0("T", Transect_code)) %>%  #Adding T, so that Transect_code 
+  #and period from DOVS_FullDB can be matched when joining data frames
+  #Remove white space from site names
+  mutate(Site = str_trim(Site, "both")) %>% 
+  #Removing accents (e.g., Bahía to Bahia) from site names
+  mutate(Site = stringi::stri_trans_general(Site, "Latin-ASCII")) %>% 
+  #Changing site names to title case (i.e., first letter of each word is capitalised)
+  mutate(Site = str_to_title(Site)) %>% 
+  #Correcting site names using Site Keys - Sites not in the list will be dropped
+  left_join(SiteKeys %>% select(SiteName, Site, SiteCode), by = c("Site" = "SiteName")) %>% 
+  #Remove original site column
+  select(-Site) %>% 
+  #Rename new site column as Site
+  rename("Site" = "Site.y") %>% 
+  #Remove any sites with no corrected name
+  drop_na(Site)
 
-#Checking if SiteInfo and SiteLength has the same site names
-unique(SiteLength$Site[!(SiteLength$Site %in% SiteInfo$Site)])
-#Changing site names so they match in SiteLength and SiteInfo
-SiteLength <- SiteLength %>% mutate(Site = 
-                                      recode(Site, 
-                                             "Bahía Gardner norte" =  "Bahía Gardner Norte", 
-                                             "Daphne menor" = "Daphne Menor",
-                                             "Isabela Sur " = "Isabela Sur",
-                                             "Luz de día" = "Luz de Día"))
 #Checking that the sites are the same
 unique(SiteLength$Site[!(SiteLength$Site %in% SiteInfo$Site)]) #Sites are the same
 
 #Joining the data from SiteLength and SiteInfo in one dataframe
-SiteInfo <- SiteInfo %>% left_join(SiteLength, by = "Site") %>% 
-  rename(Period = Transect_code) %>%  #Now Period is the same in SiteInfo and DOVS_FullDB
-  mutate(Site = stringi::stri_trans_general(Site, "Latin-ASCII"),
-         Island = stringi::stri_trans_general(Island, "Latin-ASCII")) %>% 
-  #Removing sites from SiteInfo, that are missing either from UVC or DOVS
-  filter(!Site == "Isabela Alcedo", 
-         !Site == "Punta Calle 1", 
-         !Site == "Punta Calle 2", 
-         !Site == "Punta Vicente Roca", 
-         !Site == "Santiago Suroeste") %>% 
-  mutate(Bioregion = recode(Bioregion, 
-                            "Centro-sur" = "Centro Sur", 
-                            "Centro sur" = "Centro Sur", 
-                            "Oeste fria" = "Oeste Fria"))
+SiteInfo <- SiteInfo %>% left_join(SiteLength, by = c("Site", "SiteCode")) %>% 
+  rename(Period = Transect_code)
 
 #Removing excess variables
-rm(SiteKeys, Status, SiteLength)
+rm(SiteKeys, SiteLength)
+
 
 # Tidying up UVC data -----------------------------------------------------
 #Checking species names in UVC data
 UVC %>% distinct(Species) %>% arrange(Species)
 #Tidying up UVC data
 UVC <- UVC %>% mutate(SpeciesName =
-                        recode(Species, "bonito" = "Sarda orientalis", #The bonito in Ecuador is Sarda orientalis
+                        #The bonito in Ecuador is Sarda orientalis
+                        recode(Species, "bonito" = "Sarda orientalis", 
                                #Correcting misspelled names in UVC data
                                "Paralabrax albomaclatus" = "Paralabrax albomaculatus",
                                "yellow tail snapper" = "Lutjanus argentiventris",
@@ -193,15 +178,14 @@ UVC <- UVC %>% mutate(SpeciesName =
   filter(!ValidName %in% NonFish) %>% 
   select(-c(Island)) %>% #Island will be added when SiteInfo is joined
   #Add T to Transect_code and renaming to period, so it is similar to the column in SiteInfo
-  mutate(Transect_code = as.character(paste("T", Transect_code, sep = ""))) %>% 
+  mutate(Transect_code = paste0("T", Transect_code)) %>% 
   rename(Period = Transect_code) %>% 
-  #Remove any accents in the names of sites, before joining with SiteInfo
-  mutate(Site = stringi::stri_trans_general(Site, "Latin-ASCII")) %>% 
   #Adding SiteInfo to the sites in the UVC data
-  left_join(SiteInfo %>% select(-c(DOVS, UVC, Date, Year, Month, Bioregion, )), 
-            by = c("Site" = "Site", "Period" = "Period")) %>% 
+  left_join(SiteInfo %>% select(-c(Date, Year, Month, Bioregion)), 
+            by = c("Site", "Period", "SiteCode")) %>% 
   #Going from sizeclass to length of fish in cm
   #renaming the sizeclass that is smaller than 30 cm, and longer than 300 cm.
+  #Question for DFA - How would you put this in the paper and is it the right thing to do?
   mutate(SizeClass = gsub("S", "", SizeClass)) %>% 
   mutate(SizeClass = as.numeric(recode(SizeClass, 
                                        "25" = "30", 
@@ -243,6 +227,7 @@ UVC <- UVC %>%
   uncount(., N) %>% #uncounting N to have one individual per row
   mutate(N = 1) #Adding column for N, as it is removed by uncount
 
+
 # Tidying up DOVS data -----------------------------------------------------
 #Tidying up DOVS data - Saving the clean data set as a different variable
 DOVS <- DOVS_FullDB %>% 
@@ -277,15 +262,13 @@ DOVS <- DOVS_FullDB %>%
   #Now we remove non fish species
   filter(!ValidName %in% NonFish) %>% 
   select(-c(SpeciesName, Island)) %>% 
-  #Remove any accents in the names of sites, before joining with SiteInfo
-  mutate(Site = stringi::stri_trans_general(Site, "Latin-ASCII")) %>% 
   #Left joining info about sites
-  left_join(SiteInfo %>% select(-c(UVC, DOVS, Depth)), by = c("Site" = "Site", "Period" = "Period")) 
+  left_join(SiteInfo %>% select(-c(Depth)), by = c("Site", "SiteCode", "Period"))
 
 #Remove variables that are no longer needed
 rm(DOVS_FullDB)
 
-#Finding Periods that are in the DOVS data and not in the SiteIfo, meaning they have no site length
+#Finding Periods that are in the DOVS data and not in the SiteInfo, meaning they have no site length
 DOVS %>% 
   select(Site, Period) %>% 
   mutate(DOVS_period = paste(Site, Period, sep = " ")) %>% 
@@ -299,7 +282,7 @@ DOVS %>%
   subset(!Period == "")  #Subsetting rows where there is a period, but no data in SiteInfo_period
 
 #Deleting Periods with no site length
-DOVS <- DOVS %>% filter(!(Site == "Fernandina Punta Espinoza" & Period == "T14"), 
+DOVS <- DOVS %>% filter(!(Site == "Punta Espinoza" & Period == "T14"), 
                         !(Site == "Genovesa Norte" & Period == "T10"), 
                         !(Site == "Isabela Este 5" & Period == "T3"), 
                         !(Site == "Banana" & Period == "T9"))
@@ -312,7 +295,6 @@ DOVS <- DOVS %>% filter(ValidName %in% SpeciesUVC)
 
 
 # Length check ------------------------------------------------------------
-
 #Identifying individuals that are too large in UVC data
 TooLarge_UVC <- UVC %>% #Using data from UVC
   left_join(FishDB %>% select(ValidName, MaxLgth_m) %>% unique(), #Joining max length and Trophic category
@@ -320,7 +302,10 @@ TooLarge_UVC <- UVC %>% #Using data from UVC
   mutate(MaxLgth_m = MaxLgth_m*100) %>% #Max length to cm
   rename(MaxLgth_cm = MaxLgth_m) %>% #renaming column to cm
   filter(Length_cm > MaxLgth_cm) %>%
-  select(Period, Site, ValidName, Length_cm, N, MaxLgth_cm)
+  select(Period, Site, ValidName, Length_cm, N, MaxLgth_cm) 
+#Question for DFA and PS - remove the 5 P. albomaculatus of 90 cm?
+
+#This will have to be redone, if only specific individuals that are unlikely large will be deleted
 
 #Checking species against lengths in UVC data and removing individuals that are too large
 UVC <- UVC %>% #Using data from UVC
@@ -340,6 +325,10 @@ TooLarge_DOVS <- DOVS %>% #Using data from DOVS
   rename(MaxLgth_mm = MaxLgth_m) %>% #renaming column to mm
   filter(Length_mm > MaxLgth_mm) %>%
   select(Period, Site, ValidName, Length_mm, N, MaxLgth_mm, Precision_mm, RMS_mm)
+#Question DFA and PS - L. argentiventris one individuals 92 cm, Pelayo wrote in an email that everything
+#above 90 is probably a misidentified L. novemfasciatus, so should this one be L. novemfasciatus?
+
+#This will have to be redone, if only specific individuals that are unlikely large will be deleted
 
 #Checking species against lengths in DOVS data and removing individuals that are too large
 DOVS <- DOVS %>% #Using data from DOVS
@@ -357,7 +346,7 @@ rm(TooLarge_DOVS, TooLarge_UVC)
 # Quality control and adding NA lengths DOVS ----------------------------------------------------------
 #Quality Control
 #Prior to calculating biomass we need our DOVS measurements to meet two requirements
-#1. RMS <= 50 (we have raised it from 20, as some of the videos are very blurry and this affects RMS)
+#1. RMS <= 60 (we have raised it from 20, as some of the videos are very blurry and this affects RMS)
 #2. Precision <= 10% estimated Length
 
 #To live up to the precision requirements, I have in the following lines of code removed length measurements
@@ -380,7 +369,8 @@ DOVS <- DOVS %>%
   group_by(Site, ValidName) %>% 
   #Making column with mean length of species per site
   mutate(Length_site = mean(Length_mm, na.rm = TRUE)) %>%
-  ungroup() %>% 
+  ungroup() %>% #Question DFA - do I need to use ungroup before using group_by? as here. Or should I just 
+  #do it at the end of my calculations? As I aim to always do.
   #grouping species and fishing status
   group_by(ValidName, Fishing) %>% 
   #Making column with mean length per fishing status
@@ -398,7 +388,7 @@ DOVS <- DOVS %>%
   ungroup()
 
 
-#Making temporary table so that I can later find the species which have lengths from sites
+#Making temporary table so that I can later find the species which have lengths from averages
 temp <- DOVS %>% 
   #When precision is worse than 10% of length, I remove the length so an average can be calculated
   mutate(Length_mm = ifelse(!Precision_mm < Length_mm*0.1, NA, Length_mm)) %>% 
@@ -433,7 +423,8 @@ lengths_DOVS <- DOVS %>%
 #Making each row a single individual (for later mean calculations)
 lengths_DOVS <- uncount(lengths_DOVS, N) %>% #uncount from tidyverse
   #N column is lost in uncount, so it is added here
-  mutate(N = 1) %>% 
+  mutate(N = 1) %>% #Question DFA - using uncount here is no longer necessary right? As uncount is used for
+  #DOVs data earlier in the script.
   #grouping by species
   group_by(ValidName) %>% 
   #Abundance for each species
@@ -520,8 +511,8 @@ rm(lengths_DOVS, lengths_UVC, lengths)
 #Sites in SiteInfo, that do not have clean data in DOVS and UVC
 unique(SiteInfo$Site[!SiteInfo$Site %in% DOVS$Site]) #No fish in DOVS
 unique(SiteInfo$Site[!SiteInfo$Site %in% UVC$Site]) #No fish in UVC
-#Different sites have disappeared from the DOVS and UVC data after the cleaning process - removing non-predators. 
-#These sites are kept as empty sites.
+#Different sites have disappeared from the DOVS and UVC data after the cleaning process where 
+#non-predators were removed. These sites are kept as empty sites.
 
 #Making data frame for empty periods (no species) in DOVS data
 EmptyPeriods_DOVS <- SiteInfo %>% 
@@ -541,17 +532,25 @@ EmptyPeriods_DOVS <- SiteInfo %>%
 
 #Calculating species richness in DOVS
 DOVS_richness <- DOVS %>% 
+  #Selecting columns to be used
   select(Site, Period, N, Method, ValidName, Fishing, SiteCode, Transect_length_m) %>% 
   rbind(EmptyPeriods_DOVS) %>% #Binding rows with no fish in them
   group_by(Site, Period) %>% 
   mutate(Richness_period = length(unique(na.omit(ValidName)))) %>% #richness per period/transect
   mutate(Transect_area = Transect_length_m*5) %>% #Area of each period/transect in m2
-  mutate(Sp_500m2 = (Richness_period/Transect_area)*500) %>% #Species_period/500m2
+  #Question DFA - We discussed this as a bad way to calculate richness per 500m2, so I suggest
+  #Question DFA - We discussed this as a bad way to calculate richness per 500m2, so I suggest
+  #Number for transect area to be multiplied with to get 500m2
+  mutate(Transect_to500 = 500/Transect_area) %>% 
+  mutate(Sp_500m2 = Richness_period*Transect_to500) %>% #Species_period/500m2
+  #However it give the same result for species richness as the former calculation (below)
+  #mutate(Sp_500m2 = (Richness_period/Transect_area)*500) %>% #Species_period/500m2
   #Removing abundance and species names, as they are not used for species richness calculations
   select(-c(N, ValidName)) %>% 
   unique() %>% 
   group_by(Site) %>% 
-  summarise(Site_sp_500m2 = mean(Sp_500m2), #calculating mean species per 500m2 for each site
+  #Question DFA - is this the correct way to calculate the mean? This is including zeroes for some periods.
+  summarise(Site_sp_500m2 = mean(Sp_500m2), #calculating mean species richness per 500m2 for each site
             Method, Fishing, SiteCode) %>% 
   ungroup() %>% 
   unique()
@@ -579,11 +578,13 @@ UVC_richness <- UVC %>%
   group_by(Site, Period) %>% 
   mutate(Richness_period = length(unique(na.omit(ValidName)))) %>% #richness per period/transect
   mutate(Transect_area = Transect_length_m*5) %>% #Area of each period/transect
+  #Question - change they way to calculate per 500m2 if we decide to do it for all calculations
   mutate(Sp_500m2 = (Richness_period/Transect_area)*500) %>% #Species/500m2
   #Removing abundance and species names, as they are not used for species richness calculations
   select(-c(N, ValidName)) %>% 
   unique() %>% 
   group_by(Site) %>% 
+  #Question - check mean calculation
   summarise(Site_sp_500m2 = mean(Sp_500m2), #calculating mean species per 500m2 for each site
             Method, Fishing, SiteCode) %>% 
   ungroup() %>% 
@@ -628,7 +629,6 @@ Ric_boxplot <- ggplot(Richness, aes(x = Fishing, y = Site_sp_500m2, fill = Metho
 Ric_boxplot
 
 
-
 #Deleting variables that are no longer needed
 rm(DOVS_richness, UVC_richness)
 
@@ -644,8 +644,10 @@ DOVS_density <- DOVS %>%
   summarise(N_period = sum(N), #Sum of abundance of species within each period
             Method, Fishing, SiteCode, Transect_area) %>% 
   unique() %>% 
+  #Question - change they way to calculate per 500m2 if we decide to do it for all calculations
   mutate(N_500m2 = (N_period/Transect_area)*500) %>% #Number/500m2
   group_by(Site) %>% 
+  #Question - check mean calculation
   summarise(N_site_500m2 = mean(N_500m2), 
             Method, Fishing, SiteCode) %>% 
   unique() %>% 
@@ -660,8 +662,10 @@ UVC_density <- UVC %>%
   summarise(N_period = sum(N), #Sum of abundance of species within each period
             Method = Method, Fishing = Fishing, SiteCode = SiteCode, Transect_area) %>% 
   unique() %>% 
+  #Question - change they way to calculate per 500m2 if we decide to do it for all calculations
   mutate(N_500m2 = (N_period/Transect_area)*500) %>% #Number/500m2
   group_by(Site) %>% 
+  #Question - check mean calculation
   summarise(N_site_500m2 = mean(N_500m2), 
             Method, Fishing, SiteCode) %>% 
   unique() %>% 
@@ -711,7 +715,8 @@ rm(DOVS_density, UVC_density)
 #Quality control
 #1. RMS <= 60
 #2. Precision <= 10% estimated Length
-#In the following no data is removed, as we check that RMS is below 60 and precision is no more than 10% of length
+#In the following no data is removed, as we check that RMS is below 60 and precision is no more 
+#than 10% of length
 DOVS <- DOVS %>% filter(RMS_mm <= 60) %>% 
   #Because of blurry video RMS is higher than 20, no RMS was higher than 59
   #We change the units of the lengths from mm to cm prior to biomass calculation
@@ -738,10 +743,12 @@ Biomass_DOVS <- DOVS %>%
   mutate(Transect_area = Transect_length_m*5) %>% #Calculating transect area using transect width 5m
   group_by(Site, Period) %>% 
   #Biomass of all species per period per site AND Calculating it in grams per 500m2
+  #Question - change they way to calculate per 500m2 if we decide to do it for all calculations
   summarise(Gram_500m2_period = (sum(Biomass_N)/Transect_area)*500,
             Method, Fishing, SiteCode, Transect_area) %>% #In g/500m2
   unique() %>% 
   group_by(Site) %>% 
+  #Question - check mean calculation
   summarise(Gram_500m2_site = mean(Gram_500m2_period), #Calculating average biomass of periods as site biomass
             Method, Fishing, SiteCode) %>% 
   mutate(Kg_500m2_site = Gram_500m2_site/1000) %>% #Calculating kg per 500m2 at each site
@@ -751,9 +758,6 @@ Biomass_DOVS <- DOVS %>%
 #Loading total length ratio for FishDB data
 TLRatio <- openxlsx::read.xlsx("Data/TLRatio.xlsx", sheet = 1) %>% 
   mutate(TLRatio = as.numeric(TLRatio))
-#In case it does not work, try the line below
-#TLRatio <- readxl::read_excel("Data/TLRatio.xlsx", sheet = 1) %>%
-#  mutate(TLRatio = as.numeric(TLRatio))
 str(TLRatio) #TLRation is numeric
 
 #Adding TLRatio to UVC data
@@ -779,10 +783,12 @@ Biomass_UVC <- UVC %>%
   mutate(Transect_area = Transect_length_m*5) %>% #Calculating transect area using transect width 5m
   group_by(Site, Period) %>% 
   #Biomass of all species per period per site AND Calculating g per 500m2
+  #Question - change they way to calculate per 500m2 if we decide to do it for all calculations
   summarise(Gram_500m2_period = (sum(Biomass_N)/Transect_area)*500,
             Method, Fishing, SiteCode, Transect_area) %>% #In g per 500m2
   unique() %>% 
   group_by(Site) %>% 
+  #Question - check mean calculation
   summarise(Gram_500m2_site = mean(Gram_500m2_period), #Calculating average biomass of periods as site biomass
             Method, Fishing, SiteCode) %>% 
   mutate(Kg_500m2_site = Gram_500m2_site/1000) %>% #Calculating kg per 500m2 at each site
@@ -848,6 +854,8 @@ ggsave("Figures/CompBoxplot.tiff", boxplot_all, device = "tiff", dpi = 300, widt
 
 #combining boxplots with biomass having log10(x+1) scale
 
+#Question DFA - should I delete the plot with transformed log(x+1) transformed y-axis?
+#Since we are not using it.
 #plot biomass in kg per 500m2 - with log10 transformation of y-axis
 Bio_boxplot2 <- ggplot(Biomass, aes(x = Fishing, y = log10(Kg_500m2_site+1), fill = Method)) +
   geom_boxplot(fatten = 3) + 
@@ -933,34 +941,6 @@ Bioreg <- Richness %>%
   #column with combined bioregion and zone
   mutate(Bioreg_zone = paste(Bioregion, Zone))
 
-#UNIVARIATE PERMANOVA for species richness
-perm_ric <- adonis(Site_sp_500m2 ~ Zone*Bioregion, data = Bioreg, 
-                   permutations = 9999, method = "euclidean")
-perm_ric
-
-perm_ric2 <- as.data.frame(perm_ric$aov.tab)
-
-#No take pairwise adonis
-No_take_bioreg <- Bioreg %>% filter(Zone == "Closed")
-pair_adonis1 <- pairwise.adonis(No_take_bioreg[,"Site_sp_500m2"], No_take_bioreg$Bioreg_zone, 
-                                sim.method = "euclidean", perm = 9999)
-pair_adonis1 <- as.data.frame(pair_adonis1)
-
-#No take pairwise adonis
-Fishing_bioreg <- Bioreg %>% filter(Zone == "Open")
-pair_adonis2 <- pairwise.adonis(Fishing_bioreg[,"Site_sp_500m2"], Fishing_bioreg$Bioreg_zone, 
-                                sim.method = "euclidean", perm = 9999)
-pair_adonis2 <- as.data.frame(pair_adonis2)
-
-
-#Betadispersion bioregion status -- #does not work, needs dist object
-#dispersion <- betadisper(Bioreg[,"Site_sp_500m2"], group = Bioreg$Bioregion) 
-#beta_perm1 <- permutest(dispersion, permutations = 9999)
-#beta_perm1
-#Non-significant
-#Plotting dispersion
-#plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
-
 
 #Plot species richness with significance
 Bioreg_ric <- ggplot(Bioreg, aes(x = Zone, y = Site_sp_500m2, fill = Bioregion)) +
@@ -968,6 +948,7 @@ Bioreg_ric <- ggplot(Bioreg, aes(x = Zone, y = Site_sp_500m2, fill = Bioregion))
   ggtitle("Mean species richness per 500"~m^2) +
   scale_y_continuous(name = "Number of species/500"~m^2) +
   scale_x_discrete(labels = c("No-take zone", "Fishing zone")) +
+  scale_fill_brewer(palette = "Dark2") +
   theme_classic() +
   theme(plot.title = element_text(color="black", face="bold", hjust = 0.5),
         legend.title = element_text(color = "black", size = 17, face = "bold"), 
@@ -977,7 +958,7 @@ Bioreg_ric <- ggplot(Bioreg, aes(x = Zone, y = Site_sp_500m2, fill = Bioregion))
         axis.title.y = element_text(color = "black", size = 19),
         axis.text.x = element_text(color = "black", size = 18), 
         axis.text.y = element_text(color = "black", size = 18), 
-        title = element_text(color = "black", size = 16), 
+        title = element_text(color = "black", size = 15), 
         axis.ticks.length = unit(0.3, "cm")) +
   guides(fill = guide_legend(title.position = "top", ncol = 1)) +
   coord_cartesian(clip = "off")
@@ -985,28 +966,13 @@ Bioreg_ric <- ggplot(Bioreg, aes(x = Zone, y = Site_sp_500m2, fill = Bioregion))
 Bioreg_ric
 
 
-#UNIVARIATE PERMANOVA for density 
-perm_den <- adonis(N_site_500m2^0.5 ~ Zone*Bioregion, data = Bioreg, 
-                   permutations = 9999, method = "euclidean")
-perm_den
-perm_den2 <- as.data.frame(perm_den$aov.tab)
-
-#No take pairwise adonis -- # should I also do the transformation in the pairwise adonis??
-pair_adonis3 <- pairwise.adonis(No_take_bioreg[,"N_site_500m2"]^0.5, No_take_bioreg$Bioreg_zone, 
-                                sim.method = "euclidean", perm = 9999)
-pair_adonis3 <- as.data.frame(pair_adonis3)
-
-#No take pairwise adonis
-pair_adonis4 <- pairwise.adonis(Fishing_bioreg[,"N_site_500m2"]^0.5, Fishing_bioreg$Bioreg_zone, 
-                                sim.method = "euclidean", perm = 9999)
-pair_adonis4 <- as.data.frame(pair_adonis4)
-
 #Plot density with significance
 Bioreg_den <- ggplot(Bioreg, aes(x = Zone, y = N_site_500m2, fill = Bioregion)) +
   geom_boxplot(fatten = 3) +
   ggtitle("Mean density per 500"~m^2) +
   scale_y_continuous(name = "Number of individuals/500"~m^2) +
   scale_x_discrete(labels = c("No-take zone", "Fishing zone")) +
+  scale_fill_brewer(palette = "Dark2") +
   theme_classic() +
   theme(plot.title = element_text(color="black", face="bold", hjust = 0.5),
         legend.title = element_text(color = "black"), 
@@ -1015,28 +981,11 @@ Bioreg_den <- ggplot(Bioreg, aes(x = Zone, y = N_site_500m2, fill = Bioregion)) 
         axis.title.y = element_text(color = "black", size = 19),
         axis.text.x = element_text(color = "black", size = 18), 
         axis.text.y = element_text(color = "black", size = 18), 
-        title = element_text(color = "black", size = 16), 
+        title = element_text(color = "black", size = 15), 
         axis.ticks.length = unit(0.3, "cm")) +
   coord_cartesian(clip = "off")
 
 Bioreg_den
-
-
-#UNIVARIATE PERMANOVA for biomass
-perm_bio <- adonis(Kg_500m2_site^0.25 ~ Zone*Bioregion, data = Bioreg, 
-                   permutations = 9999, method = "euclidean")
-perm_bio
-perm_bio2 <- as.data.frame(perm_bio$aov.tab)
-
-#No take pairwise adonis
-pair_adonis5 <- pairwise.adonis(No_take_bioreg[,"Kg_500m2_site"], No_take_bioreg$Bioreg_zone, 
-                                sim.method = "euclidean", perm = 9999)
-pair_adonis5 <- as.data.frame(pair_adonis5)
-
-#No take pairwise adonis
-pair_adonis6 <- pairwise.adonis(Fishing_bioreg[,"Kg_500m2_site"], Fishing_bioreg$Bioreg_zone, 
-                                sim.method = "euclidean", perm = 9999)
-pair_adonis6 <- as.data.frame(pair_adonis6)
 
 
 #plot biomass in kg per 500m2
@@ -1045,6 +994,7 @@ Bioreg_bio <- ggplot(Bioreg, aes(x = Zone, y = Kg_500m2_site, fill = Bioregion))
   ggtitle("Mean biomass per 500"~m^2) +
   scale_x_discrete(labels = c("No-take zone", "Fishing zone")) +
   scale_y_continuous(name = "Kg/500"~m^2) +
+  scale_fill_brewer(palette = "Dark2") +
   theme_classic() +
   theme(plot.title = element_text(color="black", face="bold", hjust = 0.5),
         legend.title = element_text(color = "black"), 
@@ -1053,19 +1003,20 @@ Bioreg_bio <- ggplot(Bioreg, aes(x = Zone, y = Kg_500m2_site, fill = Bioregion))
         axis.title.y = element_text(color = "black", size = 19),
         axis.text.x = element_text(color = "black", size = 18), 
         axis.text.y = element_text(color = "black", size = 18), 
-        title = element_text(color = "black", size = 16), 
+        title = element_text(color = "black", size = 15), 
         axis.ticks.length = unit(0.3, "cm"))+
   coord_cartesian(clip = "off")
 
 Bioreg_bio
 
 
-#plot biomass in kg per 500m2
+#plot biomass in kg per 500m2 Log(x+1) y-axis
 Bioreg_bio2 <- ggplot(Bioreg, aes(x = Zone, y = log10(Kg_500m2_site+1), fill = Bioregion)) +
   geom_boxplot(fatten = 3) + 
   ggtitle("Mean biomass per 500"~m^2) +
   scale_x_discrete(labels = c("No-take zone", "Fishing zone")) +
   scale_y_continuous(name = bquote(Log[10](1+Kg/500~m^2))) +
+  scale_fill_brewer(palette = "Dark2") +
   theme_classic() +
   theme(plot.title = element_text(color="black", face="bold", hjust = 0.5),
         legend.title = element_text(color = "black"), 
@@ -1074,7 +1025,7 @@ Bioreg_bio2 <- ggplot(Bioreg, aes(x = Zone, y = log10(Kg_500m2_site+1), fill = B
         axis.title.y = element_text(color = "black", size = 19),
         axis.text.x = element_text(color = "black", size = 18), 
         axis.text.y = element_text(color = "black", size = 18), 
-        title = element_text(color = "black", size = 16), 
+        title = element_text(color = "black", size = 15), 
         axis.ticks.length = unit(0.3, "cm"))+
   coord_cartesian(clip = "off")
 
@@ -1099,9 +1050,79 @@ boxplot_bioreg2
 ggsave("Figures/boxplot_bioreg2.tiff", boxplot_bioreg2, device = "tiff", dpi = 300, width = 18, height = 6.5)
 
 
+# Univariate PERMANOVA for bioreg boxplots --------------------------------
+### Richness ###
+
+#UNIVARIATE PERMANOVA for species richness
+perm_ric <- adonis(Site_sp_500m2 ~ Zone*Bioregion, data = Bioreg, 
+                   permutations = 9999, method = "euclidean")
+perm_ric
+
+perm_ric2 <- as.data.frame(perm_ric$aov.tab)
+
+#No take pairwise adonis
+No_take_bioreg <- Bioreg %>% filter(Zone == "Closed")
+pair_adonis1 <- pairwise.adonis(No_take_bioreg[,"Site_sp_500m2"], No_take_bioreg$Bioreg_zone, 
+                                sim.method = "euclidean", perm = 9999)
+pair_adonis1 <- as.data.frame(pair_adonis1)
+
+#No take pairwise adonis
+Fishing_bioreg <- Bioreg %>% filter(Zone == "Open")
+pair_adonis2 <- pairwise.adonis(Fishing_bioreg[,"Site_sp_500m2"], Fishing_bioreg$Bioreg_zone, 
+                                sim.method = "euclidean", perm = 9999)
+pair_adonis2 <- as.data.frame(pair_adonis2)
+
+#Question DFA - is it correct that I cannot do betadispersion on a univariate PERMANOVA
+#Betadispersion bioregion status -- #does not work, needs dist object
+#dispersion <- betadisper(Bioreg[,"Site_sp_500m2"], group = Bioreg$Bioregion) 
+#beta_perm1 <- permutest(dispersion, permutations = 9999)
+#beta_perm1
+#Non-significant
+#Plotting dispersion
+#plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
+
+### Density ###
+
+#UNIVARIATE PERMANOVA for density 
+perm_den <- adonis(N_site_500m2^0.5 ~ Zone*Bioregion, data = Bioreg, 
+                   permutations = 9999, method = "euclidean")
+perm_den
+perm_den2 <- as.data.frame(perm_den$aov.tab)
+
+#Question DFA - should I instead do a pairwise adonis for all combinations? 
+#Then I would get each of the sites compared for no-take and fishing zones (which I do not currently have)
+#No take pairwise adonis -- # should I also do the transformation in the pairwise adonis??
+pair_adonis3 <- pairwise.adonis(No_take_bioreg[,"N_site_500m2"]^0.5, No_take_bioreg$Bioreg_zone, 
+                                sim.method = "euclidean", perm = 9999)
+pair_adonis3 <- as.data.frame(pair_adonis3)
+
+#Fishing pairwise adonis
+pair_adonis4 <- pairwise.adonis(Fishing_bioreg[,"N_site_500m2"]^0.5, Fishing_bioreg$Bioreg_zone, 
+                                sim.method = "euclidean", perm = 9999)
+pair_adonis4 <- as.data.frame(pair_adonis4)
+
+
+### Biomass ###
+
+#UNIVARIATE PERMANOVA for biomass
+perm_bio <- adonis(Kg_500m2_site^0.25 ~ Zone*Bioregion, data = Bioreg, 
+                   permutations = 9999, method = "euclidean")
+perm_bio
+perm_bio2 <- as.data.frame(perm_bio$aov.tab)
+
+#No take pairwise adonis
+pair_adonis5 <- pairwise.adonis(No_take_bioreg[,"Kg_500m2_site"], No_take_bioreg$Bioreg_zone, 
+                                sim.method = "euclidean", perm = 9999)
+pair_adonis5 <- as.data.frame(pair_adonis5)
+
+#Fishing pairwise adonis
+pair_adonis6 <- pairwise.adonis(Fishing_bioreg[,"Kg_500m2_site"], Fishing_bioreg$Bioreg_zone, 
+                                sim.method = "euclidean", perm = 9999)
+pair_adonis6 <- as.data.frame(pair_adonis6)
+
+
 #Delete variables used for boxplots
 rm(Bioreg, boxplot_bioreg, boxplot_bioreg2, Bioreg_ric, Bioreg_den, Bioreg_bio, Bioreg_bio2)
-
 
 #Deleting permanova and pairwise.adonis variables
 rm(perm_ric, perm_den, perm_bio, pair_adonis1, pair_adonis2, pair_adonis3, 
@@ -1125,9 +1146,12 @@ Biomass_sp_DOVS <- DOVS %>%
   mutate(Transect_area = Transect_length_m*5) %>% #Calculating transect area using transect width 5m
   group_by(Site, ValidName) %>% 
   #Calculating gram per 500m2
+  #Question - change they way to calculate per 500m2 if we decide to do it for all calculations
   summarise(Gram_500m2 = (Biomass_sp_period/Transect_area)*500, 
             Method, Fishing, SiteCode) %>% 
   #Calculating the biomass of each species per site in g per 500m2 (as average of periods)
+  #Question DFA - here I do not ude empty periods to calculate mean, I only take the mean
+  #for periods were the species is present, is this correct or should I add periods with zero counts?
   summarise(Gram_site_sp = mean(Gram_500m2), 
             ValidName, Method, Fishing, SiteCode) %>%
   #Going from g to kg for the biomass
@@ -1151,9 +1175,11 @@ Biomass_sp_UVC <- UVC %>%
   mutate(Transect_area = Transect_length_m*5) %>% #Calculating transect area using transect width 5m
   group_by(Site, ValidName) %>% 
   #Calculating gram per 500m2
+  #Question - change they way to calculate per 500m2 if we decide to do it for all calculations
   summarise(Gram_500m2 = (Biomass_sp_period/Transect_area)*500, 
             Method, Fishing, SiteCode) %>% 
   #Calculating the biomass of each species per site in g per 500m2 (as average of periods)
+  #Question - check mean calculation
   summarise(Gram_site_sp = mean(Gram_500m2), 
             ValidName, Method, Fishing, SiteCode) %>%
   #Going from g to kg for the biomass
@@ -1213,20 +1239,19 @@ range(Bio_mat^0.25)
 #I have read online that I should get in the 0-10 range
 #To achieve this I am doing a fourth root transformation
 
-#Checking QQplot for biomass of both methods
-qqnorm(Biomass_sp$Kg_site_sp^0.25)
-qqline(Biomass_sp$Kg_site_sp^0.25, col = "red")
-#The data is not normally distributed, but transforming the data makes it a little closer to normal distribution
-#I can do the PERMANOVA based on the dissimilarity despite not having normally distributed data
-
 #Applying a 4th root transformation to biomass data - and making a matrix
 Bio_mat <- Bio_mat^0.25 
 
 #Changing Dummy species data back to 1*10^-5 to avoid it influencing analysis
 Bio_mat[, "Dummy"] <- 0.6 
+#Question DFA - the paper below states that for a better community assemblage I should use the smallest 
+#biomass value for dummy species, so they are like almost empty sites, do you agree?
+#Clarke KR, Somerfield PJ, Chapman MG. On resemblance measures for ecological studies, including
+#taxonomic dissimilarities and a zero-adjusted Bray-Curtis coefficient for denuded assemblages. 
 
-#Calculating dissimilarity distance using vegan package, method bray curtis
+#Calculating dissimilarity distance using vegan package, method Bray-Curtis
 Bio_mat_dist <- vegdist(Bio_mat, method = "bray")
+#Question DFA - as I do not use the pco data that I calculate here, can I delete this code with Wcmdscale?
 #Create a weighted Principal Coordinates Analysis plot
 Bio_mat_pco <- wcmdscale(Bio_mat_dist, eig = TRUE) #returns matrix of scores scaled by eigenvalues
 #Show plot
@@ -1253,52 +1278,31 @@ PCO_biomass <- PCO_biomass %>%
             by = c("Site")) #Adding site info on fishing (closed or open to fishing), bioregion and island
 
 
-# PCO plots exploring data patterns ---------------------------------------
+# Pearson Correlation Biomass PCO ------------------------------------------------
+# Principal coordinate analysis and simple ordination plot
+#We calculate this in the same way you did above
+Bio_mat_pcoa <- pcoa(Bio_mat_dist)
+#We extract scores from PCoA and calculate correlation with biomass matrix
+SpCorr <- envfit(Bio_mat_pcoa$vectors, Bio_mat, permutations = 9999)
+#Check out the scores to each dimension from the correlation calculated above 
+scores(SpCorr, "vectors")
+#Plot your PCoA
+plot(Bio_mat_pcoa$vectors, type = "p")
+#Overlay species which have significant correlation (p <= 0.05)
+plot(SpCorr, p.max = 0.05, col = "red")
+#You can check the actual correlation coefficients (Pearson) using the line below
+SpCorr$vectors$r
+#Question DFA - Usually people only keep species that have pearson values of 0.3 or 0.4 (and above), 
+#should we do the same? (I am guessing yes, this leaves only a few species)
 
-#plotting PCO with methods based on dissimilarity from biomass
-ggplot(PCO_biomass, aes(PC1, PC2, col = Method, fill = Method)) + 
-  stat_ellipse(geom = "polygon", col = "black", alpha = 0.5) + 
-  geom_point(shape = 21, col = "black") +
-  theme_bw() + 
-  theme(panel.grid = element_blank())
-
-#plotting PCO with status based on dissimilarity from biomass
-ggplot(PCO_biomass, aes(PC1, PC2, col = Fishing, fill = Fishing)) + 
-  stat_ellipse(geom = "polygon", col = "black", alpha = 0.5) + 
-  geom_point(shape = 21, col = "black") +
-  theme_bw() + 
-  theme(panel.grid = element_blank())
-
-#plotting PCO with bioregion based on dissimilarity from biomass
-ggplot(PCO_biomass, aes(PC1, PC2, col = Bioregion, fill = Bioregion)) + 
-  stat_ellipse(geom = "polygon", col = "black", alpha = 0.5) + 
-  geom_point(shape = 21, col = "black") +
-  theme_bw() + 
-  theme(panel.grid = element_blank())
-
-#plotting PCO with bioregion based on dissimilarity from biomass
-ggplot(PCO_biomass, aes(PC1, PC2, col = Island, fill = Island)) + 
-  stat_ellipse(geom = "polygon", col = "black", alpha = 0.5) + 
-  geom_point(shape = 21, col = "black") +
-  theme_bw() + 
-  theme(panel.grid = element_blank())
-
-#plot with color indicating zonation (open or closed to fishing), shape = method
-ggplot(PCO_biomass) + 
-  geom_point(aes(PC1, PC2, color = Fishing, shape = Method), size = 2) +
-  scale_color_grey() +
-  theme_classic()
-
-#plot with color indicating bioregion and shape = method
-ggplot(PCO_biomass) + 
-  geom_point(aes(PC1, PC2, color = Bioregion, shape = Method), size = 2) +
-  theme_classic()
-
+#Species with r value above 0.3
+SpCorr$vectors$r > 0.3
 
 # Names on arrows in PCO plot --------------------------------------------------
 #Function that computes arrows from a pcoa and a species matrix
 compute_arrows <-  function(Bio_mat_pcoa, Bio_mat) {
   
+  #Question - change names - depending on pearson values
   # Keeping the species that has the largest arrows (from former PCO plot)
   Bio_mat = Bio_mat[ ,c("Lutjanus argentiventris", "Triaenodon obesus", "Mycteroperca olfax", 
                         "Carcharhinus limbatus", "Caranx melampygus", "Carcharhinus galapagensis", 
@@ -1332,6 +1336,7 @@ species_pcoa_arrows$vectors <- as.data.frame(species_pcoa_arrows$vectors)
 arrows_df <- as.data.frame(species_pcoa_arrows$U/15)
 arrows_df$variable <- rownames(arrows_df)
 
+#Question - change names - depending on pearson values
 #Naming arrows with short species names
 arrows_df$variable <- c("L. argentiventris", "T. obesus", "M. olfax", 
                         "C. limbatus", "C. melampygus", "C. galapagensis", 
@@ -1389,6 +1394,7 @@ PCO_biomass <- PCO_biomass %>%
                             "Centro Sur" = "Central South-eastern", 
                             "Oeste Fria" = "Western"))
 
+#Question - change depending on the species we keep after pearson correlation corrections.
 #plotting biomass, method, fishing and arrows for species with largest biomasses
 PCO_bio_1 <- ggplot(PCO_biomass) + 
   #Adding color for fishing and shapes for method
@@ -1482,6 +1488,7 @@ PCO_bio_1
 ggsave("Figures/PCO_bio_method_fishing.tiff", 
        PCO_bio_1, device = "tiff", dpi = 300, width = 11, height = 10)
 
+#Question DFA - should I just delete this plot? Since we do not use it, it has the log10(x+1) y-axis
 #WITHOUT COLOR
 #plotting biomass, Bioregion and fishing, along with arrows for species with largest biomasses
 PCO_bio_2 <- ggplot(PCO_biomass) + 
@@ -1582,75 +1589,6 @@ rm(compute_arrows, species_pcoa_arrows, arrows_df, Anchor, K, X2, Y2)
 rm(Bio_mat_pco, Bio_mat_pcoa, PCO_bio_1, PCO_bio_2)
 
 
-# Pearson correlation values biomass ----------------------------------------------
-#Making data frames for pearson correlation calculations
-
-#Data frame with axes values for each site
-PC_values <- PCO_biomass[,1:4]
-PC_values <- PC_values %>% 
-  unite(SiteMet, Site, Method, sep = " " )
-
-#Data frame with species
-sp_data <- as.data.frame(Bio_mat)
-sp_data <- sp_data %>% 
-  #rownames into column SiteMet
-  rownames_to_column(., var = "SiteMet") %>% 
-  #recode DOVs to Stereo-DOVs
-  mutate(SiteMet = str_replace(SiteMet, "DOVS", "Stereo-DOVs")) %>% 
-  #change zeros to NA for cor function (in the following) to exclude NA
-  na_if(.,0)
-
-#showing which species have too many NA values to calculate pearson values
-cor(PC_values[,2:3], sp_data[,2:30], method = "pearson", use = "pairwise.complete.obs")
-
-#removing columns with too many NA values
-sp_data <- sp_data %>% 
-  select(-c("Mobula birostris", "Tetronarce tremens", "Caranx caninus", "Scomberomorus sierra", 
-            "Sarda orientalis", "Caranx caballus", "Hypanus longus", "Carcharhinus falciformis", 
-            "Thunnus albacares", "Dummy"))
-#Now all the species left can have pearson values calculated
-cor(PC_values[,-1], sp_data[,-1], method = "pearson", use = "pairwise.complete.obs")
-
-value1 <- list()
-value2 <- list()
-
-#For loop calculating pearson correlation values for the two axes in the PCO
-for (i in names(sp_data[,-1])) {
-  sp <- sp_data[,i]
-  r <- lapply(PC_values[, -1], cor.test, sp, method = "pearson")
-  value1[[i]] <- r$PC1$estimate
-  value2[[i]] <- r$PC2$estimate
-}
-
-#pearson correlation values for the x-axis in the PCO
-r1 <- data.frame(Reduce(rbind, value1), row.names = NULL) %>% 
-  #adding species name (same order as data)
-  cbind(names(sp_data[,-1])) %>% 
-  #renaming columns
-  rename(r1 = 1, Species = 2)
-
-#pearson correlation values for the y-axis in the PCO
-r2 <- data.frame(Reduce(rbind, value2), row.names = NULL) %>%
-  #adding species name (same order as data)
-  cbind(names(sp_data[,-1])) %>% 
-  #renaming columns
-  rename(r2 = 1, Species = 2)
-
-#combine r-values dataframes
-r_values <- r1 %>% 
-  #joining correlation values from y-axis
-  left_join(r2, by = "Species") %>% 
-  #ordering columns
-  select(Species, r1, r2) %>% 
-  #Adding column for species with correlation values above 0.4 both negative and positive
-  mutate(pearson = ifelse(r1 > 0.4 | r1 < -0.4 | r2 > 0.4 | r2 < -0.4, 
-                          1, 0))
-
-
-#remove used variables
-rm(PCO_biomass, PC_values, sp_data, value1, value2, sp, r, r1, r2, r_values)
-
-
 # PERMANOVA biomass ---------------------------------------------------
 
 #Data frame for PERMANOVA Factors to be tested
@@ -1666,6 +1604,8 @@ Factors <- Biomass %>%
 #Checking type of data for all columns in Factors
 str(Factors)
 
+#Question DFA - In all the other papers I have looked into, they only did one PERMANOVA for everything and
+#commented on that. I am not sure I understand why we are doing mere here (e.g. perm2 and perm3).
 #PERMANOVA Main effects and interactions
 perm1 <- adonis(Bio_mat ~ Method*Fishing*Bioregion,
                 data = Factors, method = "bray", permutations = 9999)
@@ -1690,6 +1630,7 @@ beta_perm1
 #Plotting dispersion
 plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
 
+#Question DFA - since this one is significant, can I even conclude anything based on the bioregions??
 #Betadispersion Bioregion
 dispersion <- betadisper(Bio_mat_dist, group = Factors$Bioregion)
 beta_perm2 <- permutest(dispersion, permutations = 9999)
@@ -1754,8 +1695,10 @@ Den_sp_DOVS <- DOVS %>%
   summarise(N_period = sum(N), #Sum of abundance of species within each period
             Method, Fishing, SiteCode, Transect_area) %>% 
   unique() %>%
+  #Question - change they way to calculate per 500m2 if we decide to do it for all calculations
   mutate(N_500m2 = (N_period/Transect_area)*500) %>% #Number/500m2
   group_by(Site, ValidName) %>% 
+  #Question - check mean calculations, like PCO for biomass
   summarise(N_site_sp = mean(N_500m2), #Calculating average abundance of each species per site
             Method, Fishing, SiteCode, ValidName, N_site_sp) %>% 
   unique() %>% 
@@ -1769,8 +1712,10 @@ Den_sp_UVC <- UVC %>%
   summarise(N_period = sum(N), #Sum of abundance of species within each period
             Method, Fishing, SiteCode, Transect_area) %>% 
   unique() %>%
+  #Question - change they way to calculate per 500m2 if we decide to do it for all calculations
   mutate(N_500m2 = (N_period/Transect_area)*500) %>% #Number/500m2
   group_by(Site, ValidName) %>% 
+  #Question - check mean calculations, like PCO for biomass
   summarise(N_site_sp = mean(N_500m2), #Calculating average abundance of each species per site
             Method, Fishing, SiteCode, ValidName, N_site_sp) %>% 
   unique() %>% 
@@ -1821,10 +1766,7 @@ range(Den_mat^0.5)
 range(Den_mat^0.25)
 #I have read online that I should get in the 0-10 range
 #To achieve this I am doing a fourth root transformation
-
-#Checking QQplot for density of both methods
-qqnorm(Density_sp$N_site_sp^0.5)
-qqline(Density_sp$N_site_sp^0.5, col = "red")
+#Question DFA - do you agree with the square root transformation - and the reason for doing it?
 
 #Applying a 4th root transformation to matrix
 Den_mat <- Den_mat^0.5
@@ -1834,6 +1776,7 @@ Den_mat[, "Dummy"] <- 0.9
 
 #Calculating dissimilarity distance using vegan package, the default is Bray Curtis
 Den_mat_dist <- vegdist(Den_mat, method = "bray")
+#Question - check if wcmdscale calculation can be deleted - I'm pretty sure it can
 #Create a PCoA (Principal Co-ordinates Analysis) plot
 Den_mat_pco <- wcmdscale(Den_mat_dist, eig = TRUE) #returns matrix of scores scaled by eigenvalues
 #Show plot
@@ -1856,52 +1799,33 @@ PCO_density <- PCO_density %>%
             by = c("Site")) #Adding site info on fishing (closed or open to fishing), bioregion and island
 
 
-# PCO plots exploring data patterns ---------------------------------------
 
-#plotting PCO with methods based on dissimilarity from density
-ggplot(PCO_density, aes(PC1, PC2, col = Method, fill = Method)) + 
-  stat_ellipse(geom = "polygon", col = "black", alpha = 0.5) + 
-  geom_point(shape = 21, col = "black") +
-  theme_bw() + 
-  theme(panel.grid = element_blank())
 
-#plotting PCO with status based on dissimilarity from density
-ggplot(PCO_density, aes(PC1, PC2, col = Fishing, fill = Fishing)) + 
-  stat_ellipse(geom = "polygon", col = "black", alpha = 0.5) + 
-  geom_point(shape = 21, col = "black") +
-  theme_bw() + 
-  theme(panel.grid = element_blank())
+# Pearson Correlation Density PCO -----------------------------------------
+# Principal coordinate analysis and simple ordination plot
+#We calculate this in the same way you did above
+Den_mat_pcoa <- pcoa(Den_mat_dist)
+#We extract scores from PCoA and calculate correlation with biomass matrix
+SpCorr <- envfit(Den_mat_pcoa$vectors, Den_mat, permutations = 9999)
+#Check out the scores to each dimension from the correlation calculated above 
+scores(SpCorr, "vectors")
+#Plot your PCoA
+plot(Den_mat_pcoa$vectors, type = "p")
+#Overlay species which have significant correlation (p <= 0.05)
+plot(SpCorr, p.max = 0.05, col = "red")
+#You can check the actual correlation coefficients (Pearson) using the line below
+SpCorr$vectors$r
 
-#plotting PCO with bioregion based on dissimilarity from density
-ggplot(PCO_density, aes(PC1, PC2, col = Bioregion, fill = Bioregion)) + 
-  stat_ellipse(geom = "polygon", col = "black", alpha = 0.5) + 
-  geom_point(shape = 21, col = "black") +
-  theme_bw() + 
-  theme(panel.grid = element_blank())
-
-#plotting PCO with bioregion based on dissimilarity from density
-ggplot(PCO_density, aes(PC1, PC2, col = Island, fill = Island)) + 
-  stat_ellipse(geom = "polygon", col = "black", alpha = 0.5) + 
-  geom_point(shape = 21, col = "black") +
-  theme_bw() + 
-  theme(panel.grid = element_blank())
-
-#plot with color indicating zonation (open or closed to fishing), shape = method
-ggplot(PCO_density) + 
-  geom_point(aes(PC1, PC2, color = Fishing, shape = Method), size = 2) +
-  scale_color_grey() +
-  theme_classic()
-
-#plot with color indicating bioregion and shape = method
-ggplot(PCO_density) + 
-  geom_point(aes(PC1, PC2, color = Bioregion, shape = Method), size = 2) +
-  theme_classic()
+#Species with r value above 0.3
+SpCorr$vectors$r > 0.3
+#Question - change the species in the PCO plot based on this
 
 
 # PCO density with arrows -------------------------------------------------
 #Function that computes arrows from a pcoa and a species matrix
 compute_arrows <-  function(Den_mat_pcoa, Den_mat) {
   
+  #Question - change names - depending on pearson values
   # Keeping the species that has the largest arrows (from former PCO plot)
   Den_mat = Den_mat[ ,c("Lutjanus argentiventris", "Paralabrax albomaculatus", "Mycteroperca olfax", 
                         "Hypanus dipterurus", "Carcharhinus galapagensis", "Sphyrna lewini")]
@@ -1934,6 +1858,7 @@ species_pcoa_arrows$vectors <- as.data.frame(species_pcoa_arrows$vectors)
 arrows_df <- as.data.frame(species_pcoa_arrows$U/20)
 arrows_df$variable <- rownames(arrows_df)
 
+#Question - change names - depending on pearson values
 #Naming arrows with short species names
 arrows_df$variable <- c("L. argentiventris", "P. albomaculatus", "M. olfax", 
                         "H. dipterurus", "C. galapagensis", "S. lewini")
@@ -1957,30 +1882,6 @@ ggplot(PCO_density) +
                arrow = arrow(length = unit(2, "mm")), #Adding arrow head
                size = 0.8) +
   labs(title = "Principal Coordinate Ordination Density") + 
-  #Adding arrow labels for species with arrows upwards in plot
-  geom_text(data = arrows_df[c(1:3,5),], aes(label = arrows_df$variable[c(1:3,5)]),
-            size = 4, fontface = "bold",
-            lineheight = 0.6, 
-            x = X2[c(1:3,5)], y = Y2[c(1:3,5)], 
-            vjust = -0.8) +
-  #Adding arrow labels for species with arrows upwards in plot
-  geom_text(data = arrows_df[4,], aes(label = arrows_df$variable[4]),
-            size = 4, fontface = "bold",
-            lineheight = 0.6, 
-            x = X2[4], y = Y2[4], 
-            vjust = -0.4) +
-  #Adding arrow labels for species with arrows downwards in plot
-  geom_text(data = arrows_df[6,], aes(label = arrows_df$variable[6]),
-            size = 4, fontface = "bold",
-            lineheight = 0.6, 
-            x = X2[6], y = Y2[6], 
-            vjust = 1) +
-  #Adding arrow labels for C. melampygus, so it can be read
-  geom_text(data = arrows_df[7,], aes(label = arrows_df$variable[7]),
-            size = 4, fontface = "bold",
-            lineheight = 0.6, 
-            x = X2[7], y = Y2[7], 
-            vjust = 1.8) +
   xlim(-0.55, 1.1) +
   scale_color_grey() +
   theme_classic() +
@@ -2066,7 +1967,6 @@ PCO_den_1 <- ggplot(PCO_density) +
             x = X2[6], y = Y2[6], 
             hjust = 0.4, vjust = 1.5) +
   #Changing scales and color of plot
-  #scale_x_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.6, 0.65)) +
   scale_color_grey(start = 0.1, end = 0.5) +
   theme_classic() +
   #Adding percentages for the PCO axes
@@ -2076,7 +1976,6 @@ PCO_den_1 <- ggplot(PCO_density) +
   ylab(paste0("PCO2 (", 
               as.character(as.numeric(format(round(Den_mat_pcoa$values$Relative_eig[2], 3)))*100), 
               "% of total variation)")) +
-  #moving legend in plot and making box around it
   #moving legend in plot and making box around it
   theme(legend.position = c(0.85, 0.85), 
       legend.box.background = element_rect(size = 0.7, linetype = "solid", colour ="black"), 
@@ -2184,75 +2083,6 @@ ggsave("Figures/PCO_den_fishing_bioregion.tiff",
 #remove unnecessary variables
 rm(compute_arrows, species_pcoa_arrows, arrows_df, Anchor, K, X2, Y2)
 rm(Den_mat_pco, Den_mat_pcoa, PCO_den_1, PCO_den_2)
-
-
-# Pearson correlation values density --------------------------------------
-#Making data frames for pearson correlation calculations
-
-#Data frame with axes values for each site
-PC_values <- PCO_density[,1:4]
-PC_values <- PC_values %>% 
-  unite(SiteMet, Site, Method, sep = " " )
-
-#Data frame with species
-sp_data <- as.data.frame(Den_mat)
-sp_data <- sp_data %>% 
-  #rownames into column SiteMet
-  rownames_to_column(., var = "SiteMet") %>% 
-  #recode DOVs to Stereo-DOVs
-  mutate(SiteMet = str_replace(SiteMet, "DOVS", "Stereo-DOVs")) %>% 
-  #change zeros to NA for cor function (in the following) to exclude NA
-  na_if(.,0)
-
-#showing which species have too many NA values to calculate pearson values
-cor(PC_values[,2:3], sp_data[,2:30], method = "pearson", use = "pairwise.complete.obs")
-
-#removing columns with too many NA values
-sp_data <- sp_data %>% 
-  select(-c("Mobula birostris", "Tetronarce tremens", "Caranx caninus", "Scomberomorus sierra", 
-            "Sarda orientalis", "Caranx caballus", "Hypanus longus", "Carcharhinus falciformis", 
-            "Thunnus albacares", "Dummy"))
-#Now all the species left can have pearson values calculated
-cor(PC_values[,-1], sp_data[,-1], method = "pearson", use = "pairwise.complete.obs")
-
-value1 <- list()
-value2 <- list()
-
-#For loop calculating pearson correlation values for the two axes in the PCO
-for (i in names(sp_data[,-1])) {
-  sp <- sp_data[,i]
-  r <- lapply(PC_values[, -1], cor.test, sp, method = "pearson")
-  value1[[i]] <- r$PC1$estimate
-  value2[[i]] <- r$PC2$estimate
-}
-
-#pearson correlation values for the x-axis in the PCO
-r1 <- data.frame(Reduce(rbind, value1), row.names = NULL) %>% 
-  #adding species name (same order as data)
-  cbind(names(sp_data[,-1])) %>% 
-  #renaming columns
-  rename(r1 = 1, Species = 2)
-
-#pearson correlation values for the y-axis in the PCO
-r2 <- data.frame(Reduce(rbind, value2), row.names = NULL) %>%
-  #adding species name (same order as data)
-  cbind(names(sp_data[,-1])) %>% 
-  #renaming columns
-  rename(r2 = 1, Species = 2)
-
-#combine r-values dataframes
-r_values <- r1 %>% 
-  #joining correlation values from y-axis
-  left_join(r2, by = "Species") %>% 
-  #ordering columns
-  select(Species, r1, r2) %>% 
-  #Adding column for species with correlation values above 0.4 both negative and positive
-  mutate(pearson = ifelse(r1 > 0.4 | r1 < -0.4 | r2 > 0.4 | r2 < -0.4, 
-                          1, 0))
-
-
-#remove used variables
-rm(PCO_density, PC_values, sp_data, value1, value2, sp, r, r1, r2, r_values)
 
 
 # PERMANOVA density -------------------------------------------------------
@@ -2399,109 +2229,4 @@ sites <- SiteInfo %>%
 #Remove variables after use
 rm(sites)
 
-
-# Extra tables and figures ------------------------------------------------
-
-# Biomass PCO short names -------------------------------------------------
-### Run the main code Github_UVC_DOVS until "PCO plot for biomass"
-
-#New names for BIOMASS PCO plot
-new_names <- as.data.frame(rep(1:74, each = 2)) %>% 
-  rename(numbers = "rep(1:74, each = 2)") %>%
-  mutate(letters = rep(c("D", "U"), each = 1, length.out = 74*2)) %>% 
-  unite(name, c(numbers,letters), sep = "")
-
-#Making matrix for dissimilarity calculation DOVS and UVC
-Bio_mat <- Biomass_sp %>% #Based on biomass calculations for individual species at each site
-  select(-c(Fishing, SiteCode)) %>% 
-  #Adding the Method to the site name (I split them later for the plot)
-  unite(SiteMet, Site, Method, sep = " ") %>% 
-  #Making the format right for the matrix
-  pivot_wider(names_from = "ValidName", values_from = "Kg_site_sp") %>% 
-  #Adding dummy species to all sites, to enable dissimilarity calculations later
-  #As I have some empty sites, where it is important to see how the methods UVC and DOVS differ
-  mutate(Dummy = 0.6) %>% 
-  arrange(SiteMet) %>% #Arranging site names
-  #Adding new shorter names
-  bind_cols(new_names) %>%
-  select(name, everything()) %>% 
-  #removing SiteMethod
-  select(-SiteMet) %>% 
-  column_to_rownames("name") %>% #Making a column into row names for the matrix
-  as.matrix() %>% 
-  replace_na(0)  #Putting 0 instead of NA, when the species was not observed at a site
-
-#Applying a 4th root transformation to biomass data - and making a matrix
-Bio_mat <- Bio_mat^0.25 
-
-#Changing Dummy species data back to 1*10^-5 to avoid it influencing analysis
-Bio_mat[, "Dummy"] <- 0.6 
-
-#Calculating dissimilarity distance using vegan package, method bray curtis
-Bio_mat_dist <- vegdist(Bio_mat, method = "bray")
-#Create a weighted Principal Coordinates Analysis plot
-Bio_mat_pco <- wcmdscale(Bio_mat_dist, eig = TRUE) #returns matrix of scores scaled by eigenvalues
-#Show plot
-plot(Bio_mat_pco, type = "points") #Add type points to remove labels
-
-# Principal coordinate analysis and simple ordination plot
-Bio_mat_pcoa <- pcoa(Bio_mat_dist)
-# barplot of eigenvalues 1-10
-barplot(Bio_mat_pcoa$values$Relative_eig[1:10])
-#Biplot with arrows
-biplot(Bio_mat_pcoa, Bio_mat)
-#The principal coordinates analysis from pcoa function from the Ape package is similar to the 
-#weighted principal coordinates analysis plot from wcmdscale 
-
-
-# Density PCO short names -------------------------------------------------
-### Run the main code Github_UVC_DOVS until "PCO plot for density"
-
-#Making Matrix for density of species
-Den_mat <- Density_sp %>% 
-  select(-c(Fishing, SiteCode)) %>% 
-  unite(SiteMet, Site, Method, sep = " ") %>% 
-  pivot_wider(names_from = "ValidName", values_from = "N_site_sp") %>% #Making the format right for the matrix
-  mutate(Dummy = 0.9) %>% #Adding dummy species to all sites, to enable dissimilarity calculations later
-  arrange(SiteMet) %>% #Arranging site names
-  #Adding new shorter names
-  bind_cols(new_names) %>%
-  select(name, everything()) %>% 
-  #removing SiteMethod
-  select(-SiteMet) %>% 
-  column_to_rownames("name") %>% #Making a column into row names for the matrix
-  as.matrix() %>% 
-  replace_na(0)  #Putting 0 instead of NA, when the species was not observed at a site
-
-#Removing unnecessary variables
-rm(Den_sp_DOVS, Den_sp_UVC)
-
-#Checking ranges for transformations and no transformation
-range(Den_mat)
-range(Den_mat^0.5)
-range(Den_mat^0.25)
-#I have read online that I should get in the 0-10 range
-#To achieve this I am doing a fourth root transformation
-
-#Checking QQplot for density of both methods
-qqnorm(Density_sp$N_site_sp^0.5)
-qqline(Density_sp$N_site_sp^0.5, col = "red")
-
-#Applying a 4th root transformation to matrix
-Den_mat <- Den_mat^0.5
-
-#Changing Dummy species data back to 1*10^-5 to avoid it influencing analysis
-Den_mat[, "Dummy"] <- 0.9 
-
-#Calculating dissimilarity distance using vegan package, the default is Bray Curtis
-Den_mat_dist <- vegdist(Den_mat, method = "bray")
-#Create a PCoA (Principal Co-ordinates Analysis) plot
-Den_mat_pco <- wcmdscale(Den_mat_dist, eig = TRUE) #returns matrix of scores scaled by eigenvalues
-#Show plot
-plot(Den_mat_pco, type = "points") #Add type points to remove labels
-
-#Principal coordinate analysis and simple ordination plot
-Den_mat_pcoa <- pcoa(Den_mat_dist)
-#Biplot with arrows
-biplot(Den_mat_pcoa, Den_mat)
 
