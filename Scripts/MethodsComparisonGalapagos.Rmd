@@ -1,0 +1,32 @@
+---
+title: "Methods comparison Galapagos"
+author: "Sara Hansen"
+date: "2021-01-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Methods comparison
+
+Use this markdown document to clean the UVC and DOVS data and compare the two methods.
+
+
+### Data Cleaning
+By using the line below you can clean your data.
+
+```{r Data Cleaning}
+source("1_DataCleaning.R")
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
