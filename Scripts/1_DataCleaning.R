@@ -1,11 +1,10 @@
-###################################################################################################################
+###############################################################################################################
 # Title: Data cleaning UVC and DOVS Data Galapagos
 # Author: Sara Færch Hansen
 # Assisting: Denisse Fierro Arcos
 # Version: 1
 # Date last updated: 2021-01-28
-# Aim: 
-###################################################################################################################
+###############################################################################################################
 
 # Uploading libraries -----------------------------------------------------
 {library(tidyverse)
@@ -73,14 +72,6 @@ DOVS_FullDB <- read.csv(file = "../Data/DOVS.csv", header = TRUE,
   #Remove any sites with no corrected name
   drop_na(Site)
 
-#Check which site names are not the same across methodologies - DFA
-#Sites that appear in DOVS only - DFA
-unique(DOVS_FullDB$Site)[!unique(DOVS_FullDB$Site) %in% unique(UVC$Site)]
-#Sites that appear in UVC only - DFA
-unique(UVC$Site)[which(!unique(UVC$Site) %in% unique(DOVS_FullDB$Site))]
-#the Sites "Isabela Isla tortuga", "Islote Gardner", "Pared Norte", 
-#do not have any species present in UVC data and are therefore absent from the site column, but they were sampled.
-
 
 #Loading data with coordinates and open/closed to fishing status
 SiteInfo <- read.csv("../Data/GPScoords_BacalaoMMT_Corrected.csv") %>% 
@@ -132,8 +123,6 @@ SiteLength <- openxlsx::read.xlsx("../Data/Periods & Transect Lengths_Bacalao Ma
   #Remove any sites with no corrected name
   drop_na(Site)
 
-#Checking that the sites are the same
-unique(SiteLength$Site[!(SiteLength$Site %in% SiteInfo$Site)]) #Sites are the same
 
 #Joining the data from SiteLength and SiteInfo in one dataframe
 SiteInfo <- SiteInfo %>% left_join(SiteLength, by = c("Site", "SiteCode")) %>% 
@@ -144,22 +133,8 @@ rm(SiteKeys, SiteLength)
 
 
 # Tidying up UVC data -----------------------------------------------------
-#Checking species names in UVC data
-UVC %>% distinct(Species) %>% arrange(Species)
 #Tidying up UVC data
-UVC <- UVC %>% mutate(SpeciesName =
-                        #The bonito in Ecuador is Sarda orientalis
-                        recode(Species, "bonito" = "Sarda orientalis", 
-                               #Correcting misspelled names in UVC data
-                               "Paralabrax albomaclatus" = "Paralabrax albomaculatus",
-                               "yellow tail snapper" = "Lutjanus argentiventris",
-                               "Zalophus wolebacki" = "Zalophus wollebaeki",
-                               "Hoplopagrus guenteri" = "Hoplopagrus guentherii",
-                               "Zalophus wollebackii" = "Zalophus wollebaeki",
-                               "Zalophus wollebacki" = "Zalophus wollebaeki",
-                               "Heterodonthus quoyi" = "Heterodontus quoyi",
-                               "Myvteroperca olfax" = "Mycteroperca olfax", 
-                               "Dermatolepsis dermatolepsis" = "Dermatolepis dermatolepis")) %>%
+UVC <- UVC %>%
   #Dropping columns we do not need
   select(-c(Time, Diver, Current, Temperature_unit, Thermocline_depth, Species, Dive_duration, 
             Census_duration, Distance_unit, Sex, Depth, Transect_length)) %>%
@@ -180,10 +155,9 @@ UVC <- UVC %>% mutate(SpeciesName =
   #renaming the sizeclass that is smaller than 30 cm, and longer than 300 cm.
   #Question for DFA - How would you put this in the paper and is it the right thing to do?
   mutate(SizeClass = gsub("S", "", SizeClass)) %>% 
-  mutate(SizeClass = as.numeric(recode(SizeClass, 
-                                       "25" = "30", 
-                                       "301" = "300"))) %>% 
   rename(Length_cm = SizeClass) %>% 
+  #Making length a numeric value
+  mutate(Length_cm = as.numeric(Length_cm)) %>% 
   filter(!N == 0) #Removing UVC rows with no abundance (N = 0)
 
 #Extracting rows with NA values under ValidName, but keeping all columns

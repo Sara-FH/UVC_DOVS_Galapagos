@@ -3,30 +3,789 @@ title: "Methods comparison Galapagos"
 author: "Sara Hansen"
 date: "2021-01-28"
 output: html_document
+editor_options: 
+  chunk_output_type: inline
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+### Loading libraries
+
+```{r Loading libraries, echo = FALSE}
+{library(tidyverse)
+library(vegan)#Question DFA - I had an error with finding function adonis, from vegan, is it because vegan was #only loaded within one of the above scripts? If this is the case, then I guess I should load tidyverse, ggplot2 #and vegan here in this markdown, instead of within one of the scripts?
+library(ggsignif) #Used for level of significance in ggplots
+library(pairwiseAdonis) #pairwise PERMANOVA
+library(RColorBrewer) #color palette for graph
+library(ggpubr)} #ggarrange, for arranging graphs
+```
+
+
 ## Methods comparison
 
-Use this markdown document to clean the UVC and DOVS data and compare the two methods.
-
+This markdown document is used to clean the UVC and DOVS data and compare the two methods.
+Aim: Compare UVC and DOVS data in the Galapagos for predatory fish species.
 
 ### Data Cleaning
-By using the line below you can clean your data.
+Cleaning the UVC and stereo-DOVs data.
 
 ```{r Data Cleaning}
 source("1_DataCleaning.R")
 ```
 
-## Including Plots
+### Unmeasured individuals in stereo-DOVs
+Adding median length for a species at a site to unmeasured individuals in stereo-DOVs. 
 
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r Unmeasured individuals in stereo-DOVs}
+source("2_Unmeasured_DOVS.R")
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+### Calculating mean species richness, mean density and mean biomass
+Calculating mean species richness, mean density and mean biomass of predatory fish species in the Galapagos per site surveyed for each of the methods UVC and stereo-DOVs.
+
+```{r Calculating mean species richness, mean density and mean biomass}
+source("3_Calculating_Richness_Density_Biomass.R")
+```
+
+### Univariate PERMANOVA for mean species richness, mean density and mean biomass
+Performing univariate PERMANOVA for mean species richness, mean density and mean biomass for method (UVC and stereo-DOVs) and fishing/management status (no-take zone and fishing zone).
+
+```{r Univariate PERMANOVA}
+#UNIVARIATE PERMANOVA for species richness
+perm_ric <- adonis(Site_sp_500m2 ~ Method*Fishing, data = Richness, 
+                   permutations = 9999, method = "euclidean")
+perm_ric
+
+#UNIVARIATE PERMANOVA for density
+perm_den <- adonis(N_site_500m2^0.5 ~ Method*Fishing, data = Density, 
+                   permutations = 9999, method = "euclidean")
+perm_den
+
+#UNIVARIATE PERMANOVA for biomass
+perm_bio <- adonis(Kg_500m2_site^0.25 ~ Method*Fishing, data = Biomass, 
+                   permutations = 9999, method = "euclidean")
+perm_bio
+
+#Species richness univariate PERMANOVA to excel
+results <- perm_ric$aov.tab
+#writing excel file
+write.xlsx(results, "../Tables/UNI_PERM_Richness_Boxplot.xlsx")
+
+#Density univariate PERMANOVA to excel
+results <- perm_den$aov.tab
+#writing excel file
+write.xlsx(results, "../Tables/UNI_PERM_Density_Boxplot.xlsx")
+
+#Density univariate PERMANOVA to excel
+results <- perm_bio$aov.tab
+#writing excel file
+write.xlsx(results, "../Tables/UNI_PERM_Biomass_Boxplot.xlsx")
+```
+
+### Creating boxplot for mean species richness, mean density and mean biomass
+Building boxplots for mean species richness, mean density and mean biomass for UVC and stereo-DOVs. Combining boxplots into figure.
+
+```{r Boxplot mean species richness, mean density and mean biomass}
+#Boxplot of species richness with significance
+Ric_boxplot <- ggplot(Richness, aes(x = Fishing, y = Site_sp_500m2, fill = Method)) +
+  geom_boxplot(fatten = 3) +
+  ggtitle("Mean species richness per 500"~m^2) +
+  geom_signif(annotations = paste0("p = ", round(perm_ric$aov.tab$`Pr(>F)`[2], digits = 3)), 
+              y_position = max(Richness$Site_sp_500m2)*1.1, 
+              xmin = "Closed", xmax = "Open", textsize = 6, 
+              vjust = -0.2) +
+  scale_fill_manual(name = "Method", labels = c("Stereo-DOVs", "UVC"), 
+                    values = grey.colors(2, start = 0.1, end = 0.5)) +
+  scale_y_continuous(name = "Number of species/500"~m^2, 
+                     breaks = seq(0,5,by = 1)) +
+  scale_x_discrete(labels = c("No-take zone", "Fishing zone")) +
+  theme_classic() +
+  theme(plot.title = element_text(color="black", face="bold", hjust = 0.5),
+        legend.title = element_text(color = "black", size = 17, face = "bold"), 
+        legend.text = element_text(color = "black", size = 16),
+        legend.key.size = unit(1.5,"cm"),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(color = "black", size = 19),
+        axis.text.x = element_text(color = "black", size = 18), 
+        axis.text.y = element_text(color = "black", size = 18), 
+        title = element_text(color = "black", size = 16),
+        axis.ticks.length = unit(0.3, "cm")) +
+  guides(fill = guide_legend(title.position = "top", ncol = 1)) +
+  coord_cartesian(clip = "off")
+
+Ric_boxplot
+
+#Boxplot of density with significance
+Den_boxplot <- ggplot(Density, aes(x = Fishing, y = N_site_500m2, fill = Method)) +
+  geom_boxplot(fatten = 3) +
+  ggtitle("Mean density per 500"~m^2) +
+  geom_signif(annotations = paste0("p = ", round(perm_den$aov.tab$`Pr(>F)`[2], digits = 3)), 
+              y_position = max(Density$N_site_500m2)*1.1, 
+              xmin = "Closed", xmax = "Open", textsize = 6, 
+              vjust = -0.2) +
+  scale_fill_manual(name = "Method", labels = c("Stereo-DOVs", "UVC"), 
+                    values = grey.colors(2, start = 0.1, end = 0.5)) +
+  scale_y_continuous(name = "Number of individuals/500"~m^2) +
+  scale_x_discrete(labels = c("No-take zone", "Fishing zone")) +
+  theme_classic() +
+  theme(plot.title = element_text(color="black", face="bold", hjust = 0.5),
+        legend.title = element_text(color = "black"), 
+        legend.text = element_text(color = "black"), 
+        axis.title.x = element_blank(), 
+        axis.title.y = element_text(color = "black", size = 19),
+        axis.text.x = element_text(color = "black", size = 18), 
+        axis.text.y = element_text(color = "black", size = 18), 
+        title = element_text(color = "black", size = 16), 
+        axis.ticks.length = unit(0.3, "cm")) +
+  coord_cartesian(clip = "off")
+
+Den_boxplot
+
+#Boxplot biomass with significance
+Bio_boxplot <- ggplot(Biomass, aes(x = Fishing, y = Kg_500m2_site, fill = Method)) +
+  geom_boxplot(fatten = 3) + 
+  ggtitle("Mean biomass per 500"~m^2) +
+  geom_signif(annotations = paste0("p = ", round(perm_bio$aov.tab$`Pr(>F)`[2], digits = 3)), 
+              y_position = max(Biomass$Kg_500m2_site)*1.1, 
+              xmin = "Closed", xmax = "Open", textsize = 6, 
+              vjust = -0.2) +
+  scale_fill_manual(name = "Method", labels = c("Stereo-DOVs", "UVC"), 
+                    values = grey.colors(2, start = 0.1, end = 0.5)) +
+  scale_x_discrete(labels = c("No-take zone", "Fishing zone")) +
+  scale_y_continuous(name = "Kg/500"~m^2) +
+  theme_classic() +
+  theme(plot.title = element_text(color="black", face="bold", hjust = 0.5),
+        legend.title = element_text(color = "black"), 
+        legend.text = element_text(color = "black"), 
+        axis.title.x = element_blank(), 
+        axis.title.y = element_text(color = "black", size = 19),
+        axis.text.x = element_text(color = "black", size = 18), 
+        axis.text.y = element_text(color = "black", size = 18), 
+        title = element_text(color = "black", size = 16), 
+        axis.ticks.length = unit(0.3, "cm"))+
+  coord_cartesian(clip = "off")
+
+Bio_boxplot
+
+#Combining boxplot for richness, density and biomass
+boxplot_all <- ggarrange(nrow = 1, ncol = 3, Ric_boxplot, Den_boxplot, Bio_boxplot,
+                         align = "v", common.legend = TRUE, legend = "right")
+boxplot_all
+
+#Saving composite image with different ratios
+ggsave("../Figures/CompBoxplot.tiff", boxplot_all, device = "tiff", dpi = 300, width = 18, height = 6.5)
+
+
+#Delete variables used for boxplots
+rm(boxplot_all, Ric_boxplot, Den_boxplot, Bio_boxplot)
+#Remove Univariate PERMANOVA variables
+rm(perm_ric, perm_den, perm_bio, results)
+```
+
+
+### Creating boxplot for bioregions and mean species richness, mean density and mean biomass
+Building boxplots for bioregions for mean species richness, mean density and mean biomass for UVC and stereo-DOVs. Combining boxplots into figure.
+
+```{r Boxplot for bioregions}
+#Making a dataframe for the boxplot
+Bioreg <- Richness %>% 
+  #Adding density column
+  left_join(Density %>% select(Site, Method, N_site_500m2), by = c("Site", "Method")) %>% 
+  #Adding biomass column
+  left_join(Biomass %>% select(Site, Method, Kg_500m2_site), by = c("Site", "Method")) %>% 
+  #Adding bioregion data from SiteInfo
+  #left_join(SiteInfo %>% select(Site, Bioregion) %>% unique(), by = "Site") %>% 
+  #reordering columns
+  select(Site, Site_sp_500m2, N_site_500m2, Kg_500m2_site, Bioregion, everything()) %>% 
+  rename(Zone = Fishing) %>% 
+  #renaming bioregions
+  mutate(Bioregion = recode(Bioregion, 
+                            "Lejano Norte" = "Far Northern", 
+                            "Norte" = "Northern", 
+                            "Centro Sur" = "Central South-eastern", 
+                            "Oeste Fria" = "Western")) %>% 
+  #column with combined bioregion and zone
+  mutate(Bioreg_zone = paste(Bioregion, Zone))
+
+#Boxplot bioregion and species richness with significance
+Bioreg_ric <- ggplot(Bioreg, aes(x = Zone, y = Site_sp_500m2, fill = Bioregion)) +
+  geom_boxplot(fatten = 3) +
+  ggtitle("Mean species richness per 500"~m^2) +
+  scale_y_continuous(name = "Number of species/500"~m^2) +
+  scale_x_discrete(labels = c("No-take zone", "Fishing zone")) +
+  scale_fill_brewer(palette = "Dark2") +
+  theme_classic() +
+  theme(plot.title = element_text(color="black", face="bold", hjust = 0.5),
+        legend.title = element_text(color = "black", size = 17, face = "bold"), 
+        legend.text = element_text(color = "black", size = 16),
+        legend.key.size = unit(1.5,"cm"),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(color = "black", size = 19),
+        axis.text.x = element_text(color = "black", size = 18), 
+        axis.text.y = element_text(color = "black", size = 18), 
+        title = element_text(color = "black", size = 15), 
+        axis.ticks.length = unit(0.3, "cm")) +
+  guides(fill = guide_legend(title.position = "top", ncol = 1)) +
+  coord_cartesian(clip = "off")
+
+Bioreg_ric
+
+#Boxplot bioregion and density with significance
+Bioreg_den <- ggplot(Bioreg, aes(x = Zone, y = N_site_500m2, fill = Bioregion)) +
+  geom_boxplot(fatten = 3) +
+  ggtitle("Mean density per 500"~m^2) +
+  scale_y_continuous(name = "Number of individuals/500"~m^2) +
+  scale_x_discrete(labels = c("No-take zone", "Fishing zone")) +
+  scale_fill_brewer(palette = "Dark2") +
+  theme_classic() +
+  theme(plot.title = element_text(color="black", face="bold", hjust = 0.5),
+        legend.title = element_text(color = "black"), 
+        legend.text = element_text(color = "black"), 
+        axis.title.x = element_blank(), 
+        axis.title.y = element_text(color = "black", size = 19),
+        axis.text.x = element_text(color = "black", size = 18), 
+        axis.text.y = element_text(color = "black", size = 18), 
+        title = element_text(color = "black", size = 15), 
+        axis.ticks.length = unit(0.3, "cm")) +
+  coord_cartesian(clip = "off")
+
+Bioreg_den
+
+#Boxplot bioregion and biomass
+Bioreg_bio <- ggplot(Bioreg, aes(x = Zone, y = Kg_500m2_site, fill = Bioregion)) +
+  geom_boxplot(fatten = 3) + 
+  ggtitle("Mean biomass per 500"~m^2) +
+  scale_x_discrete(labels = c("No-take zone", "Fishing zone")) +
+  scale_y_continuous(name = "Kg/500"~m^2) +
+  scale_fill_brewer(palette = "Dark2") +
+  theme_classic() +
+  theme(plot.title = element_text(color="black", face="bold", hjust = 0.5),
+        legend.title = element_text(color = "black"), 
+        legend.text = element_text(color = "black"), 
+        axis.title.x = element_blank(), 
+        axis.title.y = element_text(color = "black", size = 19),
+        axis.text.x = element_text(color = "black", size = 18), 
+        axis.text.y = element_text(color = "black", size = 18), 
+        title = element_text(color = "black", size = 15), 
+        axis.ticks.length = unit(0.3, "cm"))+
+  coord_cartesian(clip = "off")
+
+Bioreg_bio
+
+#Combining boxplot for richness, density and biomass
+boxplot_bioreg <- ggarrange(nrow = 1, ncol = 3, Bioreg_ric, Bioreg_den, Bioreg_bio,
+                         align = "v", common.legend = TRUE, legend = "right")
+boxplot_bioreg
+
+#Saving composite image with different ratios - DFA
+ggsave("../Figures/boxplot_bioreg.tiff", boxplot_bioreg, device = "tiff", dpi = 300, width = 18, height = 6.5)
+```
+
+### Univariate PERMANOVA for bioregions
+Performing univariate PERMANOVA for bioregions and mean species richness, mean density and mean biomass for methods (UVC and stereo-DOVs) and fishing/management status (no-take zone and fishing zone).
+
+Question DFA - should I instead do a pairwise adonis for all combinations? 
+Then I would get each of the sites compared for no-take and fishing zones (which I do not currently have)
+
+```{r Univariate PERMANOVA for bioregions}
+### Richness ###
+
+#UNIVARIATE PERMANOVA for species richness
+perm_ric <- adonis(Site_sp_500m2 ~ Zone*Bioregion, data = Bioreg, 
+                   permutations = 9999, method = "euclidean")
+perm_ric
+perm_ric2 <- as.data.frame(perm_ric$aov.tab)
+
+#No take pairwise adonis
+No_take_bioreg <- Bioreg %>% filter(Zone == "Closed")
+pair_adonis1 <- pairwise.adonis(No_take_bioreg[,"Site_sp_500m2"], No_take_bioreg$Bioreg_zone, 
+                                sim.method = "euclidean", perm = 9999)
+pair_adonis1 <- as.data.frame(pair_adonis1)
+#Question - write code to save to excel - depending on what pairwise adonis should be done
+
+#No take pairwise adonis
+Fishing_bioreg <- Bioreg %>% filter(Zone == "Open")
+pair_adonis2 <- pairwise.adonis(Fishing_bioreg[,"Site_sp_500m2"], Fishing_bioreg$Bioreg_zone, 
+                                sim.method = "euclidean", perm = 9999)
+pair_adonis2 <- as.data.frame(pair_adonis2)
+
+#Question DFA - is it correct that I cannot do betadispersion on a univariate PERMANOVA?
+
+### Density ###
+
+#UNIVARIATE PERMANOVA for density 
+perm_den <- adonis(N_site_500m2^0.5 ~ Zone*Bioregion, data = Bioreg, 
+                   permutations = 9999, method = "euclidean")
+perm_den
+perm_den2 <- as.data.frame(perm_den$aov.tab)
+
+#No take pairwise adonis
+#Question DFA - should I also do the transformation in the pairwise adonis?
+pair_adonis3 <- pairwise.adonis(No_take_bioreg[,"N_site_500m2"]^0.5, No_take_bioreg$Bioreg_zone, 
+                                sim.method = "euclidean", perm = 9999)
+pair_adonis3 <- as.data.frame(pair_adonis3)
+
+#Fishing pairwise adonis
+pair_adonis4 <- pairwise.adonis(Fishing_bioreg[,"N_site_500m2"]^0.5, Fishing_bioreg$Bioreg_zone, 
+                                sim.method = "euclidean", perm = 9999)
+pair_adonis4 <- as.data.frame(pair_adonis4)
+
+
+### Biomass ###
+
+#UNIVARIATE PERMANOVA for biomass
+perm_bio <- adonis(Kg_500m2_site^0.25 ~ Zone*Bioregion, data = Bioreg, 
+                   permutations = 9999, method = "euclidean")
+perm_bio
+perm_bio2 <- as.data.frame(perm_bio$aov.tab)
+
+#No take pairwise adonis
+pair_adonis5 <- pairwise.adonis(No_take_bioreg[,"Kg_500m2_site"], No_take_bioreg$Bioreg_zone, 
+                                sim.method = "euclidean", perm = 9999)
+pair_adonis5 <- as.data.frame(pair_adonis5)
+
+#Fishing pairwise adonis
+pair_adonis6 <- pairwise.adonis(Fishing_bioreg[,"Kg_500m2_site"], Fishing_bioreg$Bioreg_zone, 
+                                sim.method = "euclidean", perm = 9999)
+pair_adonis6 <- as.data.frame(pair_adonis6)
+
+#Write to excel before deleting
+#Delete variables used for boxplots
+rm(Bioreg, boxplot_bioreg, Bioreg_ric, Bioreg_den, Bioreg_bio)
+
+#Deleting permanova and pairwise.adonis variables
+rm(perm_ric, perm_den, perm_bio, pair_adonis1, pair_adonis2, pair_adonis3, 
+   pair_adonis4, pair_adonis5, pair_adonis6, No_take_bioreg, Fishing_bioreg)
+```
+
+### Calculations for PCO on biomass data
+Preparing biomass data for PCO and performing PCO calculations. 
+A function is used to compute arrows for to enable them to be added on the final ggplot of PCO biomass data.
+
+```{r Calculations PCO biomass}
+source("4_Calculations_PCO_biomass.R")
+```
+
+### PCO plot for biomass data, method and management zonation
+Plotting Principal Coordinates analysis (PCO) for biomass of predatory fish species with indicated method (UVC and stereo-DOVs) and management zonation (Fishing zone or No-take zone).
+
+```{r PCO biomass, method and management zonation, echo=FALSE}
+# PCO Figure for biomass Method and Bioregion -----------------------------
+
+#Question - change depending on the species we keep after pearson correlation corrections.
+#Plotting biomass, method, fishing and arrows for species with largest biomass
+PCO_bio_1 <- ggplot(PCO_biomass) + 
+  #Adding color for fishing and shapes for method
+  geom_point(aes(PC1, PC2, color = Method, shape = Zone), stroke = 2, size = 4.5) + 
+  scale_color_manual(values = brewer.pal(8, "Dark2")[c(5,8)]) +
+  scale_shape_manual(values = c(21,24)) +
+  guides(color = guide_legend(order = 1), 
+         shape = guide_legend(order = 2)) +
+  geom_segment(data = arrows_df, #Adding arrows
+               x = Anchor[1], y = Anchor[2],
+               mapping = aes(xend = X2, yend = Y2),
+               arrow = arrow(length = unit(2, "mm")), #Adding arrow head
+               size = 0.8) +
+  #Adding arrow labels for C. galapagensis
+  geom_text(data = arrows_df[6,], aes(label = arrows_df$variable[6]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[6], y = Y2[6], 
+            hjust = 0.1, vjust = -0.4) +
+  #Adding arrow labels for S. lewini
+  geom_text(data = arrows_df[7,], aes(label = arrows_df$variable[7]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[7], y = Y2[7], 
+            hjust = 0.5, vjust = -0.5) +
+  #Adding arrow labels for L. argentiventris
+  geom_text(data = arrows_df[1,], aes(label = arrows_df$variable[1]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[1], y = Y2[1], 
+            hjust = 0.5, vjust = 1.2) +
+  #Changing axes and color
+  scale_x_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.6, 0.6)) +
+  scale_y_continuous(breaks = seq(-0.3, 0.6, by = 0.3), limits = c(-0.35, 0.6)) +
+  theme_classic() +
+  #Adding percentages for the PCO axes
+  xlab(paste0("PCO1 (", 
+              as.character(as.numeric(format(round(Bio_mat_pcoa$values$Relative_eig[1], 3)))*100), 
+              "% of total variation)")) +
+  ylab(paste0("PCO2 (", 
+              as.character(as.numeric(format(round(Bio_mat_pcoa$values$Relative_eig[2], 3)))*100), 
+              "% of total variation)")) +
+  #moving legend in plot and making box around it
+  theme(legend.position = c(0.85, 0.85), 
+        legend.box.background = element_rect(size = 0.7, linetype = "solid", colour ="black"), 
+        legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"),
+        legend.title = element_text(color = "black", size = 23),
+        legend.text = element_text(color = "black", size = 21),
+        axis.text.x = element_text(color = "black", size = 23), 
+        axis.text.y = element_text(color = "black", size = 23), 
+        axis.title.x = element_text(color = "black", size = 25),
+        axis.title.y = element_text(color = "black", size = 25), 
+        axis.line.x = element_line(color = "black", size = 1), 
+        axis.line.y = element_line(color = "black", size = 1), 
+        axis.ticks = element_line(color = "black", size = 1.2), 
+        axis.ticks.length = unit(0.2, "cm"))
+
+PCO_bio_1
+
+#Saving PCO for biomass - method and management status
+ggsave("../Figures/PCO_bio_method_fishing.tiff", 
+       PCO_bio_1, device = "tiff", dpi = 300, width = 11, height = 10)
+```
+
+### PCO plot for biomass data, bioregion and management zonation
+Plotting Principal Coordinates analysis (PCO) for biomass of predatory fish species with indicated Bioregion (Central South-eastern, Far Northern, Northern and Western) and management zonation (Fishing zone or No-take zone).
+
+```{r PCO biomass, bioregion and management zonation, echo=FALSE}
+#plotting biomass, Bioregion and fishing, along with arrows for species with largest biomasses
+PCO_bio_2 <- ggplot(PCO_biomass) + 
+  geom_point(aes(PC1, PC2, color = Bioregion, shape = Zone), stroke = 2, size = 4.5) + 
+  scale_color_brewer(palette = "Dark2") +
+  scale_shape_manual(values = c(21,24)) +
+  guides(color = guide_legend(order = 1), 
+         shape = guide_legend(order = 2)) +
+  geom_segment(data = arrows_df, #Adding arrows
+               x = Anchor[1], y = Anchor[2],
+               mapping = aes(xend = X2, yend = Y2),
+               arrow = arrow(length = unit(2, "mm")), #Adding arrow head
+               size = 0.8) +
+  #Adding arrow labels for C. galapagensis
+  geom_text(data = arrows_df[6,], aes(label = arrows_df$variable[6]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[6], y = Y2[6], 
+            hjust = 0.1, vjust = -0.4) +
+  #Adding arrow labels for S. lewini
+  geom_text(data = arrows_df[7,], aes(label = arrows_df$variable[7]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[7], y = Y2[7], 
+            hjust = 0.5, vjust = -0.5) +
+  #Adding arrow labels for L. argentiventris
+  geom_text(data = arrows_df[1,], aes(label = arrows_df$variable[1]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[1], y = Y2[1], 
+            hjust = 0.5, vjust = 1.2) +
+  #Changing axes and color
+  scale_x_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.6, 0.6)) +
+  scale_y_continuous(breaks = seq(-0.3, 0.6, by = 0.3), limits = c(-0.35, 0.6)) +
+  theme_classic() +
+  #Adding percentages for the PCO axes
+  xlab(paste0("PCO1 (", 
+              as.character(as.numeric(format(round(Bio_mat_pcoa$values$Relative_eig[1], 3)))*100), 
+              "% of total variation)")) +
+  ylab(paste0("PCO2 (", 
+              as.character(as.numeric(format(round(Bio_mat_pcoa$values$Relative_eig[2], 3)))*100), 
+              "% of total variation)")) +
+  #moving legend in plot and making box around it
+  theme(legend.position = c(0.82, 0.82), 
+        legend.box.background = element_rect(size = 0.7, linetype = "solid", colour ="black"), 
+        legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"),
+        legend.title = element_text(color = "black", size = 23),
+        legend.text = element_text(color = "black", size = 21),
+        axis.text.x = element_text(color = "black", size = 23), 
+        axis.text.y = element_text(color = "black", size = 23), 
+        axis.title.x = element_text(color = "black", size = 25),
+        axis.title.y = element_text(color = "black", size = 25), 
+        axis.line.x = element_line(color = "black", size = 1), 
+        axis.line.y = element_line(color = "black", size = 1), 
+        axis.ticks = element_line(color = "black", size = 1.2), 
+        axis.ticks.length = unit(0.2, "cm"))
+
+PCO_bio_2
+
+
+#Saving PCO for biomass - method and fishing status
+ggsave("Figures/PCO_bio_bioregion_fishing.tiff", 
+       PCO_bio_2, device = "tiff", dpi = 300, width = 11, height = 10)
+
+
+#remove unnecessary variables
+rm(compute_arrows, species_pcoa_arrows, arrows_df, Anchor, K, X2, Y2)
+rm(Bio_mat_pco, Bio_mat_pcoa, PCO_bio_1, PCO_bio_2)
+```
+
+### Multivariate PERMANOVA for biomass data
+Performing multivariate PERMANOVA for fourth root transformed biomass data and method (UVC and stereo-DOVs), bioregion (Central South-eastern, Far Northern, Northern and Western) and management zone (no-take and fishing).
+
+```{r PERMANOVA biomass}
+#Data frame for PERMANOVA Factors to be tested
+Factors <- Biomass %>% 
+  left_join(Richness %>% select(Site, Method, Site_sp_500m2), #joining richness data
+            by = c("Site", "Method")) %>% 
+  left_join(Density %>% select(Site, Method, N_site_500m2), #joining density data
+            by = c("Site", "Method")) %>% 
+  left_join(SiteInfo %>% select(Site, Bioregion, Island) %>% unique(), by = "Site") %>% 
+  ungroup() %>% #Ungrouping, as site is grouped to something.
+  mutate_if(is.character, as.factor) %>% 
+  arrange(Site)
+#Checking type of data for all columns in Factors
+str(Factors)
+
+#PERMANOVA Main effects and interactions
+perm1 <- adonis(Bio_mat ~ Method*Fishing*Bioregion,
+                data = Factors, method = "bray", permutations = 9999)
+perm1
+
+#Betadispersion Fishing status
+dispersion <- betadisper(Bio_mat_dist, group = Factors$Fishing)
+beta_perm1 <- permutest(dispersion, permutations = 9999)
+beta_perm1
+#Non-significant
+
+#Betadispersion Bioregion
+dispersion <- betadisper(Bio_mat_dist, group = Factors$Bioregion)
+beta_perm2 <- permutest(dispersion, permutations = 9999)
+beta_perm2
+#Significant
+
+#Pairwise PERMANOVA to test which of the bioregions differ significantly from each other
+pair_adonis <- pairwise.adonis(Bio_mat_dist, Factors$Bioregion, perm = 9999)
+pair_adonis
+
+#Question - write to excel in script?
+
+#Excel sheet with PERMANOVA results for method, fishing, bioregion
+results <- list(perm1$aov.tab)
+#writing excel sheet
+write.xlsx(results, "../Tables/PERMANOVA_PCO_bio_met_fish_bioreg.xlsx")
+
+#Excel sheet with BETADISPERSION results for fishing
+results <- list(beta_perm1$tab)
+#writing excel sheet
+write.xlsx(results, "../Tables/BETADISPERSION_PCO_biomass_fish.xlsx")
+
+#Excel sheet with BETADISPERSION results for bioregion
+results <- list(beta_perm2$tab)
+#writing excel sheet
+write.xlsx(results, "../Tables/BETADISPERSION_PCO_biomass_bioreg.xlsx")
+
+
+#Excel sheet with PAIRWISE PERMANOVA results for bioregion
+results <- list(pair_adonis)
+#writing excel sheet
+write.xlsx(results, "../Tables/PAIR_ADONIS_PCO_biomass_bioreg.xlsx")
+
+
+#Removing unnecessary variables
+rm(dispersion, Bio_mat_dist, perm1, beta_perm1, beta_perm2, pair_adonis)
+```
+
+### Calculations for PCO on density data
+Preparing density data for PCO and performing PCO calculations. 
+A function is used to compute arrows for to enable them to be added on the final ggplot of PCO density data.
+
+```{r Calculations PCO biomass}
+source("5_Calculations_PCO_density.R")
+```
+
+### PCO plot for density data, method and management zonation
+Plotting Principal Coordinates analysis (PCO) for density of predatory fish species with indicated method (UVC and stereo-DOVs) and management zonation (Fishing zone or No-take zone).
+
+```{r PCO density, method and management zonation, echo=FALSE}
+#plotting density, method, fishing and arrows for species with largest densities
+PCO_den_1 <- ggplot(PCO_density) + 
+  #Adding color for fishing and shapes for method
+  geom_point(aes(PC1, PC2, fill = Zone, shape = Method, stroke = 1.5), size = 4.5) + 
+  scale_fill_manual(values = c(NA, "black")) +
+  scale_shape_manual(values = c(21,24)) +
+  guides(fill = guide_legend(override.aes = list(shape = 21)), 
+         shape = guide_legend(override.aes = list(fill = "black"))) +
+  geom_segment(data = arrows_df, #Adding arrows
+               x = Anchor[1], y = Anchor[2],
+               mapping = aes(xend = X2, yend = Y2),
+               arrow = arrow(length = unit(2, "mm")), #Adding arrow head
+               size = 0.8) +
+  #Adding arrow labels for L. argentiventris
+  geom_text(data = arrows_df[1,], aes(label = arrows_df$variable[1]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[1], y = Y2[1], 
+            hjust = 0.9, vjust = -0.5) +
+  #Adding arrow labels for M. olfax
+  geom_text(data = arrows_df[3,], aes(label = arrows_df$variable[3]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[3], y = Y2[3], 
+            hjust = 0.5, vjust = -0.5) +
+  #Adding arrow labels for S. lewini
+  geom_text(data = arrows_df[6,], aes(label = arrows_df$variable[6]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[6], y = Y2[6], 
+            hjust = 0.4, vjust = 1.5) +
+  #Changing scales and color of plot
+  scale_color_grey(start = 0.1, end = 0.5) +
+  theme_classic() +
+  #Adding percentages for the PCO axes
+  xlab(paste0("PCO1 (", 
+              as.character(as.numeric(format(round(Den_mat_pcoa$values$Relative_eig[1], 3)))*100), 
+              "% of total variation)")) +
+  ylab(paste0("PCO2 (", 
+              as.character(as.numeric(format(round(Den_mat_pcoa$values$Relative_eig[2], 3)))*100), 
+              "% of total variation)")) +
+  #moving legend in plot and making box around it
+  theme(legend.position = c(0.85, 0.85), 
+      legend.box.background = element_rect(size = 0.7, linetype = "solid", colour ="black"), 
+      legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"),
+      legend.title = element_text(color = "black", size = 23),
+      legend.text = element_text(color = "black", size = 21),
+      axis.text.x = element_text(color = "black", size = 23), 
+      axis.text.y = element_text(color = "black", size = 23), 
+      axis.title.x = element_text(color = "black", size = 25),
+      axis.title.y = element_text(color = "black", size = 25), 
+      axis.line.x = element_line(color = "black", size = 1), 
+      axis.line.y = element_line(color = "black", size = 1), 
+      axis.ticks = element_line(color = "black", size = 1.2), 
+      axis.ticks.length = unit(0.2, "cm"))
+
+PCO_den_1
+
+#Saving PCO for biomass - method and fishing status
+ggsave("Figures/PCO_den_method_fishing.tiff", 
+       PCO_den_1, device = "tiff", dpi = 300, width = 11, height = 10)
+```
+
+### PCO plot for density data, bioregion and management zonation
+Plotting Principal Coordinates analysis (PCO) for density of predatory fish species with indicated Bioregion (Central South-eastern, Far Northern, Northern and Western) and management zonation (Fishing zone or No-take zone).
+
+```{r PCO density, bioregion and management zonation, echo=FALSE}
+#plotting biomass, method, fishing and arrows for species with largest biomasses
+PCO_den_2 <- ggplot(PCO_density) +
+  #Adding color for fishing and shapes for method
+  geom_point(aes(PC1, PC2, fill = Zone, shape = Bioregion), stroke = 1.5, size = 4.5) + 
+  scale_fill_manual(values = c(NA, "black")) +
+  scale_shape_manual(values = c(21,24, 22, 23)) +
+  guides(fill = guide_legend(override.aes = list(shape = 21)), 
+         shape = guide_legend(override.aes = list(fill = "black"))) +
+  geom_segment(data = arrows_df, #Adding arrows
+               x = Anchor[1], y = Anchor[2],
+               mapping = aes(xend = X2, yend = Y2),
+               arrow = arrow(length = unit(2, "mm")), #Adding arrow head
+               size = 0.8) +
+  #Adding arrow labels for L. argentiventris
+  geom_text(data = arrows_df[1,], aes(label = arrows_df$variable[1]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[1], y = Y2[1], 
+            hjust = 0.9, vjust = -0.5) +
+  #Adding arrow labels for M. olfax
+  geom_text(data = arrows_df[3,], aes(label = arrows_df$variable[3]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[3], y = Y2[3], 
+            hjust = 0.5, vjust = -0.5) +
+  #Adding arrow labels for S. lewini
+  geom_text(data = arrows_df[6,], aes(label = arrows_df$variable[6]),
+            size = 7, fontface = "italic",
+            lineheight = 0.6, 
+            x = X2[6], y = Y2[6], 
+            hjust = 0.4, vjust = 1.5) +
+  #Changing scales and color of plot
+  #scale_x_continuous(breaks = seq(-0.6, 0.6, by = 0.3), limits = c(-0.6, 0.65)) +
+  scale_color_grey(start = 0.1, end = 0.5) +
+  theme_classic() +
+  #Adding percentages for the PCO axes
+  xlab(paste0("PCO1 (", 
+              as.character(as.numeric(format(round(Den_mat_pcoa$values$Relative_eig[1], 3)))*100), 
+              "% of total variation)")) +
+  ylab(paste0("PCO2 (", 
+              as.character(as.numeric(format(round(Den_mat_pcoa$values$Relative_eig[2], 3)))*100), 
+              "% of total variation)")) +
+  #moving legend in plot and making box around it
+  #moving legend in plot and making box around it
+  theme(legend.position = c(0.82, 0.82), 
+        legend.box.background = element_rect(size = 0.7, linetype = "solid", colour ="black"), 
+        legend.box.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"),
+        legend.title = element_text(color = "black", size = 23),
+        legend.text = element_text(color = "black", size = 21),
+        axis.text.x = element_text(color = "black", size = 23), 
+        axis.text.y = element_text(color = "black", size = 23), 
+        axis.title.x = element_text(color = "black", size = 25),
+        axis.title.y = element_text(color = "black", size = 25), 
+        axis.line.x = element_line(color = "black", size = 1), 
+        axis.line.y = element_line(color = "black", size = 1), 
+        axis.ticks = element_line(color = "black", size = 1.2), 
+        axis.ticks.length = unit(0.2, "cm"))
+
+PCO_den_2
+
+#Saving PCO for biomass - method and fishing status
+ggsave("Figures/PCO_den_fishing_bioregion.tiff", 
+       PCO_den_2, device = "tiff", dpi = 300, width = 11, height = 10)
+
+
+#remove unnecessary variables
+rm(compute_arrows, species_pcoa_arrows, arrows_df, Anchor, K, X2, Y2)
+rm(Den_mat_pco, Den_mat_pcoa, PCO_den_1, PCO_den_2)
+```
+
+
+### Multivariate PERMANOVA for density data
+Performing multivariate PERMANOVA for square root transformed density data and method (UVC and stereo-DOVs), bioregion (Central South-eastern, Far Northern, Northern and Western) and management zone (no-take and fishing).
+
+```{r PERMANOVA density}
+#PERMANOVA Main effects and interactions
+perm1 <- adonis(Den_mat ~ Method*Fishing*Bioregion,
+                data = Factors, method = "bray", permutations = 9999)
+perm1
+
+#Betadispersion Bioregion
+dispersion <- betadisper(Den_mat_dist, group = Factors$Bioregion)
+beta_perm1 <- permutest(dispersion, permutations = 9999)
+beta_perm1
+#Non-significant
+
+#Betadispersion fishing
+dispersion <- betadisper(Den_mat_dist, group = Factors$Fishing)
+beta_perm2 <- permutest(dispersion, permutations = 9999)
+beta_perm2
+#Non-significant
+
+#Pairwise PERMANOVA to test which of the bioregions differ significantly from each other
+pair_adonis <- pairwise.adonis(Den_mat_dist, Factors$Bioregion, perm = 9999)
+pair_adonis
+
+#Removing unnecessary variables
+rm(dispersion, Den_mat, Den_mat_dist)
+
+
+#Excel sheet with PERMANOVA results for method, fishing, bioregion
+results <- perm1$aov.tab
+#writing excel sheet
+write.xlsx(results, "../Tables/PERMANOVA_PCO_den_met_fish_bioreg.xlsx")
+
+#Excel sheet with BETADISPERSION results for bioregion
+results <- list(beta_perm1$tab)
+#writing excel sheet
+write.xlsx(results, "../Tables/BETADISPERSION_PCO_den_bioreg.xlsx")
+
+#Excel sheet with BETADISPERSION results for fishing
+results <- list(beta_perm2$tab)
+#writing excel sheet
+write.xlsx(results, "../Tables/BETADISPERSION_PCO_den_fishing.xlsx")
+
+#Excel sheet with PAIRWISE PERMANOVA results for bioregion
+results <- list(pair_adonis)
+#writing excel sheet
+write.xlsx(results, "../Tables/PAIR_ADONIS_PCO_den_bioreg.xlsx")
+
+
+#Removing unnecessary variables
+rm(perm1, beta_perm1, beta_perm2, pair_adonis)
+```
+
+### Species list and study site descriptors
+Creating species list and study site descriptors data frames and writing them to excel.
+
+```{r Species list and study site descriptors}
+source("6_SpeciesList_SiteDescriptors.R")
+```
+
